@@ -284,6 +284,14 @@ def _rota(metodo: str, caminho: str, q: dict, d: dict):
         reg["fluxo"] = limpo
         _gravar(estado)
         return {"ok": True}
+    if caminho == "/api/apagar_pedido":
+        pid = _id_pedido(str(d.get("id") or ""))
+        _pedido_guardado(pid, estado)
+        del estado["pedidos"][pid]
+        _gravar(estado)
+        import shutil
+        shutil.rmtree(TMP / pid, ignore_errors=True)
+        return {"ok": True}
     if caminho == "/api/gerar_peca":
         pid = _id_pedido(str(d.get("id") or ""))
         reg = _pedido_guardado(pid, estado)
