@@ -1,0 +1,175 @@
+{
+ "ano": 2026,
+ "teto_dispensa": {
+  "valor": 65492.11,
+  "base": "art. 75, II, Lei 14.133/2021, atualizado pelo Decreto federal 12.807/2025",
+  "confirmado_gdf": true
+ },
+ "alerta_teto_percentual": 0.8,
+ "intencao": {
+  "prazo_dias_uteis": 7,
+  "feriados": [
+   "2026-11-20",
+   "2026-11-30",
+   "2026-12-25",
+   "2027-01-01"
+  ],
+  "destinatarios_extras": []
+ },
+ "limite_qtd_por_ubs": null,
+ "prazos_geof": {
+  "ano": null,
+  "permanente": null,
+  "consumo": null,
+  "servico": null,
+  "adjudicacao": null,
+  "devolucao": null,
+  "referencia": {
+   "ano": 2025,
+   "permanente": "24/11/2025",
+   "consumo": "05/12/2025",
+   "servico": "24/11/2025",
+   "adjudicacao": "19/12/2025",
+   "devolucao": "26/12/2025",
+   "fonte": "Memorando Circular 2/2025 - SES/SRSNO/DA/GEOF (SEI 187078529)"
+  }
+ },
+ "unidade": {
+  "sigla": "SES/SRSNO/DIRAPS/GAPAPS",
+  "cabecalho": [
+   "Governo do Distrito Federal",
+   "Secretaria de Estado de Saúde do Distrito Federal",
+   "Diretoria Regional de Atenção Primária à Saúde",
+   "Gerência de Áreas Programáticas de Atenção Primária à Saúde"
+  ],
+  "cnpj": "00.394.700/0050-96",
+  "razao": "Superintendência da Região de Saúde Norte (Atenção Primária)"
+ },
+ "entrega": {
+  "permanente": "Quadra 12 Área Especial - Hospital Regional de Sobradinho - Brasília, Sobradinho/DF. CEP: 71928-720. Telefone: 3449-5485",
+  "permanente_sigla": "NPDOC-HRS",
+  "consumo": "Núcleo de Logística Farmacêutica, Buritis IV, Quadra 19, Área Especial 01 (Galpão branco), Planaltina/DF, CEP 73357-055, de segunda a sexta, das 07h às 12h e das 13h às 17h",
+  "consumo_obs": "As ordens de consumo da APS em 2026 entregam no NLF, todas de medicamentos e água para injeção. Os TRs do NUAL de 2026 dizem 'nas Unidades de Atenção Primária'. Para material que não seja insumo farmacêutico, confirme o local com o NUAL."
+ },
+ "gsaps": [
+  "GSAP 1 Planaltina",
+  "GSAP 2 Planaltina",
+  "GSAP 3 Planaltina",
+  "GSAP 4 Planaltina",
+  "GSAP 5 Planaltina",
+  "GSAP 6 Planaltina",
+  "GSAP 7 Planaltina",
+  "GSAP 8 Planaltina",
+  "GSAP 9 Planaltina",
+  "GSAP 1 Sobradinho",
+  "GSAP 2 Sobradinho",
+  "GSAP 3 Sobradinho",
+  "GSAP 4 Sobradinho",
+  "GSAP 5 Sobradinho",
+  "GSAP 6 Sobradinho",
+  "GSAP 7 Sobradinho"
+ ],
+ "decreto_encerramento": {
+  "numero": "Decreto 49.652, de 29/10/2026",
+  "aviso": "Veda empenho após 29/10/2026, com exceção de empenhos de até R$ 50.000,00, vedado fracionar o mesmo objeto (art. 2º, § 1º, XXV), e despesas em processo de licitação (XXIV). O decreto não cita o PDPAS: confirme com a GEOF como se aplica."
+ },
+ "teto_engenharia": {
+  "valor": 130984.2,
+  "base": "art. 75, I, Lei 14.133/2021, para obras, serviços de engenharia e manutenção de veículos, atualizado pelo Decreto federal 12.807/2025",
+  "confirmado_gdf": false
+ },
+ "idade_max_consulta_dias": 30,
+ "aviso_capital": "Confirme com a GEOF o saldo de capital. Na prestação de 2025, a APS Norte tinha R$ 1.264.648,84 disponíveis e gastou R$ 632.658,00 em permanente (SEI 194195888), mas a Centro-Sul registrou nenhum repasse de investimento em 2026 (SEI 217735942). Sem saldo, não há declaração de disponibilidade financeira (art. 16, IV).",
+ "area_parecer": [
+  {
+   "quando": {
+    "categoria": [
+     "10"
+    ]
+   },
+   "area": "SES/SEGEA/SUAG/DPAT/GAD",
+   "motivo": "mobiliário administrativo",
+   "fonte": "Pareceres de 2026 (SEI 218146614, 217909774)",
+   "nota": " A GAD pede grade de distribuição justificando substituição de inservíveis ou uso em novos locais."
+  },
+  {
+   "quando": {
+    "prefixo": [
+     "P35"
+    ]
+   },
+   "area": "SES/SETIS/DGTI/GEAT",
+   "motivo": "informática",
+   "fonte": "Parecer 31/2026 (SEI 218202353)"
+  },
+  {
+   "quando": {
+    "palavras": [
+     "HALTER",
+     "CANELEIRA",
+     "FAIXA ELASTICA",
+     "BOLA SUICA",
+     "BARRA PARALELA"
+    ]
+   },
+   "area": "SES/SEAS/SAIS/DASIS/GESSF",
+   "motivo": "reabilitação",
+   "fonte": "Parecer 29/2026 (SEI 218341521)"
+  },
+  {
+   "quando": {
+    "palavras": [
+     "PINCA",
+     "PORTA AGULHA",
+     "TESOURA",
+     "CABO DE BISTURI",
+     "CUBA",
+     "BANDEJA",
+     "AFASTADOR"
+    ]
+   },
+   "area": "SES/SEAS/SUCOAS/DIPAC/GEMEX",
+   "motivo": "instrumental",
+   "fonte": "Parecer 136/2026 (SEI 218244958)"
+  },
+  {
+   "quando": {
+    "prefixo": [
+     "P08",
+     "PAT08"
+    ]
+   },
+   "area": "SES/SEGEA/SINFRA/DEC/GEMED",
+   "motivo": "equipamento médico",
+   "fonte": "Pareceres 492 e 494/2026 (SEI 218289390, 218452927)"
+  }
+ ],
+ "modelos_geof": {
+  "fonte": "Memorando Circular 6/2023 - SES/SRSNO/DA/GEOF (SEI 123582987)",
+  "tr_insumos": "124586413",
+  "tr_servico": "172124918",
+  "tr_permanente": "123587346",
+  "declaracao_ata": "121090346",
+  "obs": "Os modelos da GEOF ainda citam a Portaria 200/2023, revogada. As minutas citam a 473."
+ },
+ "unidades_aps": {
+  "Norte": "00.394.700/0050-96",
+  "Sul": "00.394.700/0051-77",
+  "Leste": "00.394.700/0046-00",
+  "Centro-Sul": "00.394.700/0047-90",
+  "Oeste": "00.394.700/0048-71",
+  "Central": "00.394.700/0049-52",
+  "Sudoeste": "00.394.700/0045-29"
+ },
+ "vedacoes_art4": {
+  "pessoal": "I: pessoal e encargos sociais, qualquer que seja o vínculo",
+  "novo_servico": "II: implantação de novos serviços",
+  "gratificacao": "III: gratificações, bônus e auxílios",
+  "festa": "IV: festas e recepções",
+  "viagem": "V: viagens e hospedagens",
+  "obra": "VI: obras de infraestrutura, excetuados pequenos reparos de estrutura",
+  "veiculo": "VII: aquisição de veículos",
+  "pesquisa": "VIII: pesquisas de qualquer natureza",
+  "publicidade": "IX: publicidade"
+ }
+}

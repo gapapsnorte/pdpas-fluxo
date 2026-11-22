@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
+<script src="web_backend.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Ferramenta PDPAS</title>
@@ -382,43 +383,11 @@ const PK={t1:"memo_intencao",t2:"despacho_intencao",t3:"despacho_consolidado",t4
 let PED=null,LISTA=[],QUEDA=false;
 let S={tipo:"p",view:"pedidos",fase:0,sel:{k:"x"},sub:"",prev:"",wide:false,leg:false,msg:"",bp:false,tema:"pastel",cor:"suave",d:{},ans:{},sei:{},docs:{},arqs:{},h:[]};
 try{const u=JSON.parse(localStorage.getItem("pdpas-ui")||"{}");if(u.tema)S.tema=u.tema;if(u.cor)S.cor=u.cor}catch(e){}
-const BD="pdpas-pedidos";
-function lerBD(){try{return JSON.parse(localStorage.getItem(BD)||"[]")}catch(e){return[]}}
-function gravarBD(l){try{localStorage.setItem(BD,JSON.stringify(l))}catch(e){throw new Error("Este navegador não deixou guardar o pedido no aparelho.")}}
-async function api(rota,corpo){
-  const u=new URL(rota,"http://x"),l=lerBD();
-  if(u.pathname==="/api/pedidos")return{pedidos:l};
-  if(u.pathname==="/api/pedido"){const p=l.find(x=>x.id===u.searchParams.get("id"));if(!p)throw new Error("Pedido não encontrado neste aparelho.");return p}
-  if(u.pathname==="/api/fluxo"){const p=l.find(x=>x.id===corpo.id);if(p){p.fluxo=corpo.estado;gravarBD(l)}return{ok:true}}
-  throw new Error("Gerar e abrir minutas só funciona na ferramenta instalada no computador.")}
-let ITENS=null,ITPROM=null;
-function carregarItens(){if(!ITPROM)ITPROM=fetch("itens.json").then(r=>r.json()).then(j=>{ITENS=j.map(r=>({c:r[0],n:r[1],g:r[2],u:r[3],f:r[4],b:r[5],q:semAc(r[0]+" "+r[1])}))}).catch(()=>{ITPROM=null;throw 1});return ITPROM}
-function semAc(s){return String(s).normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase()}
-function nomeItem(d){d=(d||"o item").split(",")[0].trim();return d===d.toUpperCase()?d.charAt(0).toUpperCase()+d.slice(1).toLowerCase():d}
-function ehPerm(it){return /^P/i.test(it.c)||it.g===9||it.g===10}
-function textosItem(it){if(!it.u)return null;const nome=nomeItem(it.n),u=it.u.replace(/[. ]+$/,""),risco=it.f.replace(/[. ]+$/,""),ben=it.b.replace(/[. ]+$/,"").replace(/^[Aa]ssegurar\s+/,"");
-  return{justificativa:nome+": "+u.charAt(0).toLowerCase()+u.slice(1)+". A falta deste item nas unidades de Atenção Primária da Região Norte compromete "+risco+", o que caracteriza a relevância da aquisição para a saúde da população atendida.",
-    beneficios:"Assegurar "+ben+", com continuidade da assistência nas unidades da Região Norte."}}
-let ULT=[];
-async function buscarItem(q){const R=$("resbusca");if(!R)return;q=semAc(q).trim();if(!q){R.innerHTML="";return}
-  try{await carregarItens()}catch(e){R.textContent="Não consegui carregar o catálogo. Verifique a internet.";return}
-  const ps=q.split(/\s+/);ULT=ITENS.filter(i=>ps.every(p=>i.q.includes(p))).sort((a,b)=>(a.c===q?-1:0)-(b.c===q?-1:0)).slice(0,25);
-  R.innerHTML=ULT.length?ULT.map((i,k)=>`<button type="button" class="mini" data-it="${k}" style="display:block;width:100%;text-align:left;margin:4px 0;padding:8px"><b>${esc(i.c)}</b> · ${esc(i.n)}</button>`).join("")+(ULT.length===25?"<small>Mostrando os 25 primeiros; afine a busca.</small>":""):"Nenhum item encontrado."}
-function mostrarItem(i){const t=textosItem(i),D=$("detitem");if(!D)return;
-  D.innerHTML=`<div style="margin-top:10px"><h3 style="margin:0 0 4px">${esc(i.c)} · ${esc(i.n)}</h3><small>${ehPerm(i)?"Permanente (patrimônio)":"Consumo ou outro"}</small>`
-  +(t?`<p><b>Justificativa</b><br><span id="tx_j">${esc(t.justificativa)}</span><br><button type="button" class="mini" data-cp="tx_j">Copiar</button></p><p><b>Benefícios esperados</b><br><span id="tx_b">${esc(t.beneficios)}</span><br><button type="button" class="mini" data-cp="tx_b">Copiar</button></p><p class="nota">Texto sugerido, gerado por IA, sem revisão clínica item a item: leia e valide antes de usar. Quantidade, consumo médio e estoque você coloca conforme o caso.</p>`:"<p>Este código não tem texto pronto.</p>")
-  +`<button type="button" class="bt" data-usar="${ULT.indexOf(i)}">Começar pedido com este item</button></div>`;D.scrollIntoView({block:"nearest"})}
-document.addEventListener("input",e=>{if(e.target.id==="busca")buscarItem(e.target.value)});
-document.addEventListener("focusin",e=>{if(e.target.id==="busca")carregarItens().catch(()=>{})});
-document.addEventListener("click",e=>{const t=e.target;let el;
-  if(el=t.closest("[data-it]"))mostrarItem(ULT[+el.dataset.it]);
-  else if(el=t.closest("[data-cp]")){const x=$(el.dataset.cp).textContent;(navigator.clipboard?navigator.clipboard.writeText(x):Promise.reject()).then(()=>{el.textContent="Copiado"}).catch(()=>{const r=document.createRange();r.selectNodeContents($(el.dataset.cp));const s=getSelection();s.removeAllRanges();s.addRange(r);el.textContent="Selecionado: copie"})}
-  else if(el=t.closest("[data-usar]")){const i=ULT[+el.dataset.usar],f=document.querySelector("form.novo");f.codigo.value=i.c;f.item.value=i.n;f.tipo.value=ehPerm(i)?"permanente":"consumo";f.item.scrollIntoView({block:"center"})}});
-function novoPedido(ev){ev.preventDefault();const f=ev.target,l=lerBD(),id="p"+Date.now();
-  const p={id,codigo:f.codigo.value.trim(),item:f.item.value.trim()||"Sem descrição",tipo:f.tipo.value,ata:f.ata.value,reparo:false,predio:false,
-    criado:new Date().toLocaleDateString("pt-BR"),arquivos:[],pasta:"",fluxo:{}};
-  l.unshift(p);gravarBD(l);abrirPedido(id)}
-function apagarPedido(id){if(!confirm("Apagar este pedido deste aparelho?"))return;gravarBD(lerBD().filter(x=>x.id!==id));carregarLista().then(render)}
+async function api(rota,corpo){let r;
+  try{r=await fetch(rota,corpo?{method:"POST",headers:{"Content-Type":"application/json","X-Ferramenta":"1"},body:JSON.stringify(corpo)}:undefined)}
+  catch(e){QUEDA=true;throw new Error("Sem resposta do programa: feche esta janela e abra a ferramenta de novo.")}
+  const j=await r.json().catch(()=>({erro:"resposta inválida do programa"}));
+  if(!r.ok)throw new Error(j.erro||"erro");return j}
 let tSalvar=null,ultimoSalvo="";
 function save(){try{localStorage.setItem("pdpas-ui",JSON.stringify({tema:S.tema,cor:S.cor}))}catch(e){}
   if(!PED)return;const id=PED.id,estado={d:S.d,ans:S.ans,sei:S.sei,h:S.h,fase:S.fase},txt=id+JSON.stringify(estado);
@@ -465,7 +434,7 @@ function partes(n){const s=stat(n),q=laneNome(n.l),pd=v(n.pd,S.tipo),dn=s==="don
   if(n.kind==="timer")return {l:`<ol class="passos">${li(dn,"<b>Esperar</b> a data-limite escrita no despacho")}</ol>`,a:dn?reab:`<button class="pri" data-a="feito">O prazo terminou</button>`,x};
   if(n.k==="peca"){const d=S.docs[n.id];
     return {l:`<ol class="passos">`+li(!!d,d?`<b>Minuta gerada</b>: ${arq(n)} <span class="nota num">${d}</span>`:`<b>Gerar</b> a minuta: ${ab(n.doc)}`)+li(dn,`<b>Incluir no ${ab("SEI")}</b>: revisar no Word, incluir no processo e assinar`)+li(dn,dn?feito:`<b>Concluir</b>: anotar o número do documento`)+`</ol>`,
-      a:(d?`<button data-a="abrir">Abrir no Word</button><button class="lnk" data-a="minuta">Gerar de novo</button>`:`<button class="pri" data-a="minuta">Gerar a minuta</button>`)+(dn?reab:seiIn+`<button class="${d?"pri":""}" data-a="feito">Marcar como feito</button>`),
+      a:(d?`<button data-a="abrir">Baixar uma nova cópia (Word)</button><button class="lnk" data-a="minuta">Gerar de novo</button>`:`<button class="pri" data-a="minuta">Gerar a minuta</button>`)+(dn?reab:seiIn+`<button class="${d?"pri":""}" data-a="feito">Marcar como feito</button>`),
       x:x+(n.dv?`<p class="nota"><b>Depois</b>: ${ab(n.dv)}</p>`:"")}}
   const h=S.h.filter(y=>y[2]===n.id&&/^Pedido/.test(y[1])).pop();
   return {l:`<ol class="passos">`+li(w||dn,`<b>Pedir</b> (${ab(q)}): ${pd?ab(pd):fal}`+(w&&h?` <span class="nota num">· ${h[0].slice(0,5)}</span>`:""))+li(dn,`<b>Esperar</b>: ${n.vt?ab(n.vt):fal}`+(n.pz?` <span class="nota">Prazo: ${ab(n.pz)}</span>`:""))+li(dn,dn?feito:`<b>Ao voltar</b>: ${n.dv?ab(n.dv):"registrar a devolutiva"}`)+`</ol>`,
@@ -560,9 +529,9 @@ function comparar(){const f=S.fase;let r="";
   return trilho()+`<div class="cartao cresce rol"><div class="fh"><h2>Fase ${f+1}: ${F[f][0]}, nos três tipos de compra</h2><span class="nota">Troque de fase no trilho acima.</span></div><table><tr><th>Quem faz</th><th>Permanente</th><th>Consumo</th><th>Serviço</th></tr>${r}</table></div>`}
 function docsView(){const q=path().filter(n=>n.k==="peca"&&!skip(n));
   return `<div class="cartao cresce rol"><div class="fh"><h2>Minutas do pedido</h2><span class="nota">${q.filter(n=>S.docs[n.id]).length} de ${q.length} geradas</span></div><table><tr><th>Documento e fase</th><th>Arquivo e data</th><th>Nº ${ab("SEI")}</th></tr>`
-    +q.map(n=>{const d=S.docs[n.id];return `<tr class="clicavel" data-n="${n.id}" tabindex="0" data-tip="Ir para este passo"><td>${ab(n.doc)}<small>${n.f+1}. ${F[n.f][0]}</small></td><td class="arq">${d?`${arq(n)}<small class="num">${d}</small>`:`<span class="nota">ainda não gerada</span>`}</td><td class="num">${S.sei[n.id]?esc(S.sei[n.id]):"–"}</td></tr>`}).join("")
-    +`<tr><td>Checklist do processo, para anexar<small>todas as fases</small></td><td class="arq">${S.docs._ck?`${esc(S.arqs._ck||"")}<small class="num">${S.docs._ck}</small>`:`<span class="nota">ainda não gerado</span>`}</td><td class="num">–</td></tr></table>`
-    +`<p class="nota">Cada minuta sai no passo em que é usada. O checklist pode ser gerado a qualquer momento. Pasta do pedido: ${esc(PED.pasta)}</p><div class="botoes"><button class="pri" data-a="ck">${S.docs._ck?"Gerar o checklist de novo":"Gerar o checklist"}</button>${S.docs._ck?`<button data-a="abrirck">Abrir o checklist no Word</button>`:""}<button data-a="pasta">Abrir a pasta</button></div>${S.msg?`<p class="nota" role="status">${S.msg}</p>`:""}</div>`}
+    +q.map(n=>{const d=S.docs[n.id];return `<tr class="clicavel" data-n="${n.id}" tabindex="0" data-tip="Ir para este passo"><td>${ab(n.doc)}<small>${n.f+1}. ${F[n.f][0]}</small></td><td class="arq">${d?`${arq(n)}<small class="num">${d}</small><button type="button" class="mini" data-dl="${esc(arq(n))}">Baixar uma nova cópia</button>`:`<span class="nota">ainda não gerada</span>`}</td><td class="num">${S.sei[n.id]?esc(S.sei[n.id]):"–"}</td></tr>`}).join("")
+    +`<tr><td>Checklist do processo, para anexar<small>todas as fases</small></td><td class="arq">${S.docs._ck?`${esc(S.arqs._ck||"")}<small class="num">${S.docs._ck}</small><button type="button" class="mini" data-dl="${esc(S.arqs._ck||"")}">Baixar uma nova cópia</button>`:`<span class="nota">ainda não gerado</span>`}</td><td class="num">–</td></tr></table>`
+    +`<p class="nota">Cada minuta sai no passo em que é usada. O checklist pode ser gerado a qualquer momento.</p><div class="botoes"><button class="pri" data-a="ck">${S.docs._ck?"Gerar o checklist de novo":"Gerar o checklist"}</button>${S.docs._ck?`<button data-a="abrirck">Baixar o checklist (Word)</button>`:""}<button data-a="pasta">Baixar todas as minutas (.zip)</button></div>${S.msg?`<p class="nota" role="status">${S.msg}</p>`:""}</div>`}
 function legenda(){const L=[
    [`<circle class="ev" cx="27" cy="17" r="9"/>`,"Início","Círculo de linha fina. É onde o processo, ou a fase, começa."],
    [`<circle class="ev end" cx="27" cy="17" r="9"/>`,"Fim","Círculo de linha grossa. É onde termina."],
@@ -583,18 +552,10 @@ function legenda(){const L=[
 function andamento(p){const t=TP[p.tipo],f=p.fluxo||{},d=f.d||{},a=f.ans||{},q=N.filter(n=>n.tp.includes(t)&&!(n.cond&&a[n.cond]==="n")),c=q.find(n=>d[n.id]!=="d");
   return `${q.filter(n=>d[n.id]==="d").length}/${q.length} · `+(c?`Fase ${c.f+1}: ${F[c.f][0]}`+(d[c.id]==="w"?" (aguardando)":""):"concluído")}
 function pedidosView(){
-  return `<div class="cartao cresce rol"><div class="fh"><h2>Pedidos</h2></div><div class="cartao" style="margin:8px 0 14px"><div class="fh"><h2>Buscar item pelo código ou nome</h2></div>
-<input id="busca" type="search" inputmode="search" autocomplete="off" placeholder="ex.: 35732 ou fotopolimerizador" style="width:100%;box-sizing:border-box;font-size:16px;padding:10px">
-<div id="resbusca" style="margin-top:8px"></div><div id="detitem"></div></div>
-<form class="novo" onsubmit="novoPedido(event)" style="display:grid;gap:8px;margin:8px 0 14px">
-<label>Tipo<select name="tipo"><option value="permanente">Material permanente</option><option value="consumo">Material de consumo</option><option value="servico">Serviço</option></select></label>
-<label>Código SES (opcional)<input name="codigo" inputmode="numeric" autocomplete="off"></label>
-<label>Item<input name="item" required autocomplete="off" placeholder="ex.: fotopolimerizador"></label>
-<label>Ata de registro de preços vigente?<select name="ata"><option value="">Não sei</option><option value="vigente">Sim, há ata vigente</option><option value="sem">Não há ata</option></select></label>
-<button class="bt" type="submit">Novo pedido</button></form>`
+  return `<div class="cartao cresce rol"><div class="fh"><h2>Pedidos</h2><a class="bt" href="formulario.html" data-tip="Abre as telas de preenchimento: item, quantidade, condições e texto. Ao gerar as minutas, o pedido entra nesta lista.">Novo pedido</a></div>`
     +(LISTA.length?`<table><tr><th>Pedido</th><th>Tipo</th><th>Andamento</th><th>Criado em</th></tr>${LISTA.map(p=>`<tr class="clicavel" data-p="${esc(p.id)}" tabindex="0" data-tip="Abrir este pedido no fluxo"><td>${esc(p.codigo||"Serviço")}<small>${esc(p.item)}</small></td><td>${TIPO[TP[p.tipo]]||"–"}</td><td>${TP[p.tipo]?andamento(p):"–"}</td><td class="num">${esc(p.criado)}</td></tr>`).join("")}</table>`
-      :`<p>Nenhum pedido ainda. Preencha o formulário acima para acompanhar passo a passo.</p>`)
-    +`<p class="nota">Versão para celular e tablet: os pedidos ficam guardados só neste aparelho, sem enviar nada a servidor. As minutas (Word) são geradas na ferramenta do computador.</p>${S.msg?`<p class="aviso" role="status">${esc(S.msg)}</p>`:""}</div>`}
+      :`<p>Nenhum pedido gerado ainda. Comece por “Novo pedido”: você preenche o item, a quantidade e os textos, e a ferramenta gera as minutas. Depois o pedido aparece aqui, para acompanhar passo a passo.</p>`)
+    +`<p class="nota">Pedidos que você começou a preencher e ainda não gerou ficam guardados no formulário, em “Rascunhos”.</p>${S.msg?`<p class="aviso" role="status">${esc(S.msg)}</p>`:""}</div>`}
 async function carregarLista(){try{LISTA=(await api("/api/pedidos")).pedidos}catch(e){S.msg=e.message}}
 async function abrirPedido(id){try{PED=await api("/api/pedido?id="+encodeURIComponent(id))}catch(e){S.msg=e.message;S.view="pedidos";render();return}
   if(!TP[PED.tipo]){S.msg="Este pedido não tem tipo definido; não dá para montar o fluxo.";PED=null;S.view="pedidos";render();return}
@@ -663,8 +624,10 @@ document.addEventListener("click",async e=>{tip.hidden=true;const t=e.target;let
   else if(t.id==="bWide"){S.wide=!S.wide;janela(S.wide);render()}});
 document.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches&&e.target.matches("g[tabindex],tr[tabindex]")){e.preventDefault();e.target.dispatchEvent(new MouseEvent("click",{bubbles:true}))}});
 $("estilo").addEventListener("change",e=>{[S.tema,S.cor]=e.target.value.split("-");render()});
+setInterval(()=>fetch("/api/ping").then(()=>{if(QUEDA){QUEDA=false;render()}}).catch(()=>{if(!QUEDA){QUEDA=true;render()}}),8000);
 (async function(){await carregarLista();const p=new URLSearchParams(location.search).get("p");
   if(p){history.replaceState(null,"",location.pathname);await abrirPedido(p)}else render()})();
+document.addEventListener("click",e=>{const b=e.target.closest("[data-dl]");if(b){e.stopPropagation();e.preventDefault();abrirArq(b.dataset.dl)}},true);
 </script>
 </body>
 </html>
