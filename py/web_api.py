@@ -309,3 +309,36 @@ def _rota(metodo: str, caminho: str, q: dict, d: dict):
             return _baixar_arquivo(pid, partes[2] if len(partes) > 2 else "", estado)
         raise ValueError("não encontrei essa pasta")
     raise ValueError("rota desconhecida")
+
+
+COLUNAS_MESTRA = ["id", "atualizado", "criado", "codigo_ses", "item", "tipo", "quantidade_total", "valor_estimado", "unidades",
+                  "fase", "passos_feitos", "passos_total", "numeros_sei", "minutas", "situacao"]
+
+
+def _linha(pid: str, reg: dict) -> dict:
+    p = reg.get("pedido") or {}
+    f = reg.get("fluxo") or {}
+    try:
+        a = motor.analisar(p, CAT, motor.carregar_regras())
+        qtd, val = a.get("quantidade_total"), a.get("valor_estimado")
+    except Exception:  # noqa: BLE001
+        qtd = val = None
+    fase = f.get("fase")
+    nomes = motor.FASES
+    feitos = sum(1 for v in (f.get("d") or {}).values() if v == "d")
+    info = _info(pid, reg)
+    return {"id": pid, "atualizado": f.get("atualizado") or reg.get("criado") or "", "criado": reg.get("criado") or "",
+            "codigo_ses": p.get("codigo_ses") or "", "item": info["item"], "tipo": p.get("tipo") or "", "quantidade_total": qtd,
+            "valor_estimado": val, "unidades": " | ".join(str(p.get("unidades") or "").splitlines()),
+            "fase": nomes[fase] if isinstance(fase, int) and 0 <= fase < len(nomes) else "", "passos_feitos": feitos,
+            "passos_total": "", "numeros_sei": ", ".join(str(v) for v in (f.get("sei") or {}).values() if v),
+            "minutas": len(reg.get("arquivos") or []), "situacao": "em andamento"}
+
+
+def linha_mestra(pid: str) -> str:
+    estado = _ler()
+    return json.dumps(_linha(pid, _pedido_guardado(pid, estado)), ensure_ascii=False)
+
+
+def todas_linhas() -> str:
+    return json.dumps([_linha(i, r) for i, r in _ler()["pedidos"].items()], ensure_ascii=False)

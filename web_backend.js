@@ -58,15 +58,54 @@
     const corpo = (opt && opt.body) || "";
     const r = JSON.parse(p.globals.get("web_api").tratar(metodo, u.pathname, u.search.replace(/^\?/, ""), corpo));
     if (r.code === 200 && r.obj && r.obj.__download) { baixar(r.obj.__download); r.obj = { ok: true }; }
+    if (r.code === 200 && metodo === "POST") nuvemApos(u.pathname, corpo, r.obj);
     return new Response(JSON.stringify(r.obj), { status: r.code, headers: { "Content-Type": "application/json" } });
   };
+
+
+  /* Nuvem (Google Drive + Planilha mestra) por um Apps Script da própria pessoa. Endereço e código ficam só neste aparelho. */
+  const CFG = "pdpas-nuvem-v1";
+  function cfg() { try { return JSON.parse(localStorage.getItem(CFG) || "{}"); } catch (e) { return {}; } }
+  function setCfg(c) { localStorage.setItem(CFG, JSON.stringify(c)); }
+  let estadoNuvem = "";
+  function mostrarNuvem(t) { estadoNuvem = t; const el = document.getElementById("wbNuvem"); if (el) el.textContent = t; }
+  async function chamar(acao, dados) {
+    const c = cfg();
+    if (!c.url || !c.codigo) throw new Error("Nuvem não configurada.");
+    const r = await realFetch(c.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ acao, codigo: c.codigo }, dados || {})) });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.erro || "falha");
+    return j;
+  }
+  const api = () => py.globals.get("web_api");
+  let tBackup = null; const fila = new Set(); let apagados = [];
+  function nuvemApos(caminho, corpo, obj) {
+    if (!cfg().url || !cfg().auto) return;
+    let b = {}; try { b = corpo ? JSON.parse(corpo) : {}; } catch (e) { /* ignora */ }
+    if (caminho === "/api/gerar" && obj.pasta) fila.add(obj.pasta.split("/").pop());
+    else if (["/api/fluxo", "/api/gerar_peca"].includes(caminho) && b.id) fila.add(b.id);
+    else if (caminho === "/api/apagar_pedido" && b.id) { fila.delete(b.id); apagados.push(b.id); }
+    else if (caminho !== "/api/rascunho") return;
+    clearTimeout(tBackup); tBackup = setTimeout(sincronizar, 3000);
+  }
+  async function sincronizar() {
+    const ids = [...fila], ap = apagados; fila.clear(); apagados = [];
+    try {
+      mostrarNuvem("Salvando no Drive…");
+      for (const id of ids) { try { await chamar("linha", { linha: JSON.parse(api().linha_mestra(id)) }); } catch (e) { if (!/Não encontrei/.test(e.message)) throw e; } }
+      for (const id of ap) await chamar("apagado", { id });
+      await chamar("salvar_backup", { conteudo: api().exportar() });
+      mostrarNuvem("Salvo no Drive em " + new Date().toLocaleTimeString("pt-BR"));
+    } catch (e) { ids.forEach(i => fila.add(i)); apagados = apagados.concat(ap); mostrarNuvem("Não consegui salvar no Drive: " + e.message); }
+  }
 
   /* backup: levar os pedidos de um computador para outro */
   function barra() {
     const b = document.createElement("details");
     b.style.cssText = "position:fixed;right:8px;top:8px;z-index:9999;font:13px system-ui,sans-serif;background:var(--cartao,#fff);color:var(--tx,#222);border:1px solid #9aa;border-radius:8px;padding:4px 8px;max-width:260px";
-    b.innerHTML = '<summary style="cursor:pointer">Levar para outro computador</summary><p style="margin:6px 0">Os pedidos ficam só neste aparelho. Salve o backup (guarde no Drive ou OneDrive) e carregue no outro aparelho. As minutas são refeitas na hora.</p><button type="button" id="wbSalvar" style="margin:2px">Salvar backup</button><label style="display:inline-block;border:1px solid #889;border-radius:6px;padding:2px 8px;margin:2px;cursor:pointer">Carregar backup<input id="wbCarregar" type="file" accept=".json,application/json" hidden></label><div id="wbMsg" style="margin-top:4px"></div>';
+    b.innerHTML = '<summary style="cursor:pointer">Levar para outro computador</summary><p style="margin:6px 0">Os pedidos ficam só neste aparelho. Salve o backup (guarde no Drive ou OneDrive) e carregue no outro aparelho. As minutas são refeitas na hora.</p><button type="button" id="wbSalvar" style="margin:2px">Salvar backup</button><label style="display:inline-block;border:1px solid #889;border-radius:6px;padding:2px 8px;margin:2px;cursor:pointer">Carregar backup<input id="wbCarregar" type="file" accept=".json,application/json" hidden></label><div id="wbMsg" style="margin-top:4px"></div><hr style="margin:8px 0"><b>Drive e planilha mestra</b><p style="margin:4px 0">Cole o endereço do seu script do Google e o código que você definiu nele.</p><input id="wbUrl" placeholder="endereço do script (https://script.google.com/…/exec)" style="width:100%;box-sizing:border-box;margin:2px 0"><input id="wbCod" type="password" placeholder="código" autocomplete="off" style="width:100%;box-sizing:border-box;margin:2px 0"><label style="display:block;margin:2px 0"><input id="wbAuto" type="checkbox"> Salvar sozinho a cada alteração</label><button type="button" id="wbTestar" style="margin:2px">Conectar e testar</button><button type="button" id="wbEnviar" style="margin:2px">Enviar tudo agora</button><button type="button" id="wbTrazer" style="margin:2px">Trazer do Drive</button><button type="button" id="wbSair" style="margin:2px">Desconectar</button><div id="wbNuvem" style="margin-top:4px"></div><p style="margin:6px 0"><a href="https://github.com/gapapsnorte/pdpas-fluxo/blob/main/apps_script/TRANSPLANTAR.md" target="_blank" rel="noopener">Como trocar de conta</a></p>';
     document.body.appendChild(b);
+    nuvemUI(b);
     const m = t => { b.querySelector("#wbMsg").textContent = t; };
     b.querySelector("#wbSalvar").onclick = async () => {
       try {
@@ -84,6 +123,36 @@
       } catch (e2) { m(String(e2.message || e2).split("\n").pop()); }
       e.target.value = "";
     };
+  }
+  function nuvemUI(b) {
+    const c = cfg(), q = id => b.querySelector(id);
+    q("#wbUrl").value = c.url || ""; q("#wbCod").value = c.codigo || ""; q("#wbAuto").checked = !!c.auto;
+    mostrarNuvem(c.url ? "Conectado a este script. Código guardado só neste aparelho." : "Não conectado.");
+    const ler = () => ({ url: q("#wbUrl").value.trim(), codigo: q("#wbCod").value, auto: q("#wbAuto").checked });
+    q("#wbAuto").onchange = () => setCfg(Object.assign(cfg(), { auto: q("#wbAuto").checked }));
+    q("#wbTestar").onclick = async () => {
+      const n = ler(); if (!/^https:\/\/script\.google\.com\//.test(n.url)) { mostrarNuvem("O endereço deve começar com https://script.google.com/"); return; }
+      setCfg(n); mostrarNuvem("Testando…");
+      try { await chamar("ping"); mostrarNuvem("Conexão certa. Use “Enviar tudo agora” para guardar o que já existe."); } catch (e) { mostrarNuvem("Não conectou: " + e.message); }
+    };
+    q("#wbEnviar").onclick = async () => {
+      try {
+        await pronto; mostrarNuvem("Enviando…");
+        await chamar("linhas", { linhas: JSON.parse(api().todas_linhas()) });
+        await chamar("salvar_backup", { conteudo: api().exportar() });
+        mostrarNuvem("Tudo enviado em " + new Date().toLocaleTimeString("pt-BR"));
+      } catch (e) { mostrarNuvem("Não enviou: " + e.message); }
+    };
+    q("#wbTrazer").onclick = async () => {
+      try {
+        await pronto; mostrarNuvem("Buscando…");
+        const j = await chamar("ler_backup");
+        if (!j.conteudo) { mostrarNuvem("Ainda não há backup no Drive."); return; }
+        const r = JSON.parse(api().importar_backup(j.conteudo));
+        mostrarNuvem(`Trazido: ${r.pedidos} pedidos e ${r.rascunhos} rascunhos. Atualizando…`); setTimeout(() => location.reload(), 900);
+      } catch (e) { mostrarNuvem("Não trouxe: " + String(e.message || e).split("\n").pop()); }
+    };
+    q("#wbSair").onclick = () => { localStorage.removeItem(CFG); q("#wbUrl").value = ""; q("#wbCod").value = ""; q("#wbAuto").checked = false; mostrarNuvem("Desconectado. O Drive não foi alterado."); };
   }
   document.addEventListener("DOMContentLoaded", barra);
 })();
