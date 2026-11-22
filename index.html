@@ -391,6 +391,29 @@ async function api(rota,corpo){
   if(u.pathname==="/api/pedido"){const p=l.find(x=>x.id===u.searchParams.get("id"));if(!p)throw new Error("Pedido não encontrado neste aparelho.");return p}
   if(u.pathname==="/api/fluxo"){const p=l.find(x=>x.id===corpo.id);if(p){p.fluxo=corpo.estado;gravarBD(l)}return{ok:true}}
   throw new Error("Gerar e abrir minutas só funciona na ferramenta instalada no computador.")}
+let ITENS=null,ITPROM=null;
+function carregarItens(){if(!ITPROM)ITPROM=fetch("itens.json").then(r=>r.json()).then(j=>{ITENS=j.map(r=>({c:r[0],n:r[1],g:r[2],u:r[3],f:r[4],b:r[5],q:semAc(r[0]+" "+r[1])}))}).catch(()=>{ITPROM=null;throw 1});return ITPROM}
+function semAc(s){return String(s).normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase()}
+function nomeItem(d){d=(d||"o item").split(",")[0].trim();return d===d.toUpperCase()?d.charAt(0).toUpperCase()+d.slice(1).toLowerCase():d}
+function ehPerm(it){return /^P/i.test(it.c)||it.g===9||it.g===10}
+function textosItem(it){if(!it.u)return null;const nome=nomeItem(it.n),u=it.u.replace(/[. ]+$/,""),risco=it.f.replace(/[. ]+$/,""),ben=it.b.replace(/[. ]+$/,"").replace(/^[Aa]ssegurar\s+/,"");
+  return{justificativa:nome+": "+u.charAt(0).toLowerCase()+u.slice(1)+". A falta deste item nas unidades de Atenção Primária da Região Norte compromete "+risco+", o que caracteriza a relevância da aquisição para a saúde da população atendida.",
+    beneficios:"Assegurar "+ben+", com continuidade da assistência nas unidades da Região Norte."}}
+let ULT=[];
+async function buscarItem(q){const R=$("resbusca");if(!R)return;q=semAc(q).trim();if(!q){R.innerHTML="";return}
+  try{await carregarItens()}catch(e){R.textContent="Não consegui carregar o catálogo. Verifique a internet.";return}
+  const ps=q.split(/\s+/);ULT=ITENS.filter(i=>ps.every(p=>i.q.includes(p))).sort((a,b)=>(a.c===q?-1:0)-(b.c===q?-1:0)).slice(0,25);
+  R.innerHTML=ULT.length?ULT.map((i,k)=>`<button type="button" class="mini" data-it="${k}" style="display:block;width:100%;text-align:left;margin:4px 0;padding:8px"><b>${esc(i.c)}</b> · ${esc(i.n)}</button>`).join("")+(ULT.length===25?"<small>Mostrando os 25 primeiros; afine a busca.</small>":""):"Nenhum item encontrado."}
+function mostrarItem(i){const t=textosItem(i),D=$("detitem");if(!D)return;
+  D.innerHTML=`<div style="margin-top:10px"><h3 style="margin:0 0 4px">${esc(i.c)} · ${esc(i.n)}</h3><small>${ehPerm(i)?"Permanente (patrimônio)":"Consumo ou outro"}</small>`
+  +(t?`<p><b>Justificativa</b><br><span id="tx_j">${esc(t.justificativa)}</span><br><button type="button" class="mini" data-cp="tx_j">Copiar</button></p><p><b>Benefícios esperados</b><br><span id="tx_b">${esc(t.beneficios)}</span><br><button type="button" class="mini" data-cp="tx_b">Copiar</button></p><p class="nota">Texto sugerido, gerado por IA, sem revisão clínica item a item: leia e valide antes de usar. Quantidade, consumo médio e estoque você coloca conforme o caso.</p>`:"<p>Este código não tem texto pronto.</p>")
+  +`<button type="button" class="bt" data-usar="${ULT.indexOf(i)}">Começar pedido com este item</button></div>`;D.scrollIntoView({block:"nearest"})}
+document.addEventListener("input",e=>{if(e.target.id==="busca")buscarItem(e.target.value)});
+document.addEventListener("focusin",e=>{if(e.target.id==="busca")carregarItens().catch(()=>{})});
+document.addEventListener("click",e=>{const t=e.target;let el;
+  if(el=t.closest("[data-it]"))mostrarItem(ULT[+el.dataset.it]);
+  else if(el=t.closest("[data-cp]")){const x=$(el.dataset.cp).textContent;(navigator.clipboard?navigator.clipboard.writeText(x):Promise.reject()).then(()=>{el.textContent="Copiado"}).catch(()=>{const r=document.createRange();r.selectNodeContents($(el.dataset.cp));const s=getSelection();s.removeAllRanges();s.addRange(r);el.textContent="Selecionado: copie"})}
+  else if(el=t.closest("[data-usar]")){const i=ULT[+el.dataset.usar],f=document.querySelector("form.novo");f.codigo.value=i.c;f.item.value=i.n;f.tipo.value=ehPerm(i)?"permanente":"consumo";f.item.scrollIntoView({block:"center"})}});
 function novoPedido(ev){ev.preventDefault();const f=ev.target,l=lerBD(),id="p"+Date.now();
   const p={id,codigo:f.codigo.value.trim(),item:f.item.value.trim()||"Sem descrição",tipo:f.tipo.value,ata:f.ata.value,reparo:false,predio:false,
     criado:new Date().toLocaleDateString("pt-BR"),arquivos:[],pasta:"",fluxo:{}};
@@ -560,7 +583,10 @@ function legenda(){const L=[
 function andamento(p){const t=TP[p.tipo],f=p.fluxo||{},d=f.d||{},a=f.ans||{},q=N.filter(n=>n.tp.includes(t)&&!(n.cond&&a[n.cond]==="n")),c=q.find(n=>d[n.id]!=="d");
   return `${q.filter(n=>d[n.id]==="d").length}/${q.length} · `+(c?`Fase ${c.f+1}: ${F[c.f][0]}`+(d[c.id]==="w"?" (aguardando)":""):"concluído")}
 function pedidosView(){
-  return `<div class="cartao cresce rol"><div class="fh"><h2>Pedidos</h2></div><form class="novo" onsubmit="novoPedido(event)" style="display:grid;gap:8px;margin:8px 0 14px">
+  return `<div class="cartao cresce rol"><div class="fh"><h2>Pedidos</h2></div><div class="cartao" style="margin:8px 0 14px"><div class="fh"><h2>Buscar item pelo código ou nome</h2></div>
+<input id="busca" type="search" inputmode="search" autocomplete="off" placeholder="ex.: 35732 ou fotopolimerizador" style="width:100%;box-sizing:border-box;font-size:16px;padding:10px">
+<div id="resbusca" style="margin-top:8px"></div><div id="detitem"></div></div>
+<form class="novo" onsubmit="novoPedido(event)" style="display:grid;gap:8px;margin:8px 0 14px">
 <label>Tipo<select name="tipo"><option value="permanente">Material permanente</option><option value="consumo">Material de consumo</option><option value="servico">Serviço</option></select></label>
 <label>Código SES (opcional)<input name="codigo" inputmode="numeric" autocomplete="off"></label>
 <label>Item<input name="item" required autocomplete="off" placeholder="ex.: fotopolimerizador"></label>
