@@ -1,6 +1,7 @@
 /* Versão web da Ferramenta PDPAS: as mesmas rotas /api/* do programa do computador, respondidas por Python (Pyodide) no próprio navegador.
    Nada vai a servidor: pedidos e rascunhos ficam no localStorage; o backup leva tudo para outro aparelho. */
 (function () {
+  if (window.top !== window && /[?&]bpmn=1/.test(location.search)) return;   // fluxograma embutido: só desenha, não carrega o Python
   const PYO = "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/";
   const BASE = new URL("./", document.currentScript ? document.currentScript.src : location.href).href;
   const ARQS = ["motor.py", "pecas.py", "textos.py", "historico.py", "controle.py", "web_api.py", "regras.json", "dados/catalogo.json", "dados/textos_itens.json"];
