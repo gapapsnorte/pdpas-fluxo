@@ -19,7 +19,8 @@ header{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
 h1{margin:0;font-size:16px;font-weight:900}
 header small{color:var(--tinta2);font-weight:700;font-size:11px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lnk{font:inherit;font-size:11.5px;font-weight:800;color:var(--tinta2);background:none;border:0;cursor:pointer;text-decoration:underline;padding:0}
-/* faixa fixa com as nove fases (BPMN: início, subprocessos, fim) */
+/* fluxograma BPMN fixo no alto (vem de /fluxo?bpmn=1) */
+#bpmn{border:0;width:100%;height:206px;flex:none;display:block;background:transparent}
 .bpm{display:flex;align-items:center;gap:2px;flex:none}
 .bpm .ev{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--tinta);background:#fff;flex:none}
 .bpm .ev.fim{border-width:3.5px}
@@ -127,7 +128,7 @@ button.alerta{cursor:pointer}
     <button class="lnk" id="planilha" type="button" title="Abre a planilha única de controle: uma linha por pedido feito neste aparelho">Planilha de controle</button>
     <a class="lnk" id="irExp" href="fluxo.html?exp=1" title="Cada fase e cada passo do processo, com o fluxograma em raias, quem faz, prazos e base">Explicação do processo</a>
   </header>
-  <nav class="bpm" aria-label="As nove fases do processo de compra pelo PDPAS"><span class="ev" title="Início do processo"></span><i></i><a href="fluxo.html?exp=1&f=0" title="Fase 1: Demanda. Descobrir quanto a região inteira precisa do item, para sair um processo só. Clique para ler a explicação desta fase."><b>1</b> Demanda</a><i></i><a href="fluxo.html?exp=1&f=1" title="Fase 2: Instrução. Juntar o que prova que a compra é necessária e permitida. Clique para ler a explicação desta fase."><b>2</b> Instrução</a><i></i><a href="fluxo.html?exp=1&f=2" title="Fase 3: Parecer central. Uma área técnica central confirma o item e a descrição. Só em material permanente. Clique para ler a explicação desta fase."><b>3</b> Parecer central</a><i></i><a href="fluxo.html?exp=1&f=3" title="Fase 4: Autorização. O ordenador de despesa confirma o pedido, o dinheiro e autoriza comprar. Clique para ler a explicação desta fase."><b>4</b> Autorização</a><i></i><a href="fluxo.html?exp=1&f=4" title="Fase 5: Cotação. Achar o preço justo com ao menos 3 preços válidos. Clique para ler a explicação desta fase."><b>5</b> Cotação</a><i></i><a href="fluxo.html?exp=1&f=5" title="Fase 6: Escolha do fornecedor. Escolher a empresa que atende ao TR pelo melhor preço. Clique para ler a explicação desta fase."><b>6</b> Escolha do fornecedor</a><i></i><a href="fluxo.html?exp=1&f=6" title="Fase 7: Contratação. Formalizar: confirmar a vencedora, emitir a Ordem e publicar. Clique para ler a explicação desta fase."><b>7</b> Contratação</a><i></i><a href="fluxo.html?exp=1&f=7" title="Fase 8: Recebimento e atesto. Conferir o que chegou e atestar, para liberar o pagamento. Clique para ler a explicação desta fase."><b>8</b> Recebimento e atesto</a><i></i><a href="fluxo.html?exp=1&f=8" title="Fase 9: Pagamento e contas. Pagar a empresa e prestar contas. Sem contas, o repasse é suspenso. Clique para ler a explicação desta fase."><b>9</b> Pagamento e contas</a><i></i><span class="ev fim" title="Fim do processo"></span></nav>
+  <iframe id="bpmn" src="fluxo.html?bpmn=1" title="Fluxograma BPMN do processo: fases e raias por setor"></iframe>
   <div class="faixa oculto" id="seiFaixa" role="status"><span id="seiMsg" style="flex:1;min-width:0"></span><button class="lnk" id="seiAdiar" type="button">Adiar 7 dias</button><button class="lnk" id="seiCancelar" type="button">Cancelar</button><button class="lnk" id="seiFechar" type="button">Fechar</button></div>
   <section class="rasc oculto" id="rasc" aria-label="Pedidos não concluídos">
     <div class="rasc-topo"><b>Pedidos não concluídos</b><button class="lnk" id="rascFechar" type="button">Fechar</button></div>
@@ -778,6 +779,11 @@ $("gerar").addEventListener("click",async()=>{
 });
 document.addEventListener("click",e=>{const b=e.target.closest("[data-baixar]");if(b&&pasta)api("/api/abrir",{alvo:pasta+"/"+b.dataset.baixar}).catch(x=>$("status").textContent=x.message)});
 $("abrir").addEventListener("click",()=>api("/api/abrir",{alvo:pasta}).catch(e=>$("status").textContent=e.message));
+let tipoBp=null;
+window.addEventListener("message",async e=>{const d=e.data||{};if(e.origin!==location.origin)return;
+  if(d.pdpasAltura){$("bpmn").style.height=Math.min(d.pdpasAltura+2,236)+"px";tipoBp=null}
+  if(d.pdpasIr){try{await salvarJa()}catch(x){}location.href=d.pdpasIr}});
+setInterval(()=>{if(tipo&&tipo!==tipoBp){tipoBp=tipo;const f=$("bpmn");if(f&&f.contentWindow)f.contentWindow.postMessage({pdpasTipo:tipo},"*")}},400);
 $("planilha").addEventListener("click",()=>{$("status").textContent="Montando a planilha de controle…";api("/api/planilha",{}).then(()=>{$("status").textContent="Planilha de controle baixada (abre no Excel)."}).catch(e=>{$("status").textContent=e.message})});
 $("novo").addEventListener("click",async()=>{await salvarJa();location.href="index.html"});
 $("verRasc").addEventListener("click",()=>$("rasc").classList.toggle("oculto"));

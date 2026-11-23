@@ -158,5 +158,5 @@
     };
     q("#wbSair").onclick = () => { localStorage.removeItem(CFG); q("#wbUrl").value = ""; q("#wbCod").value = ""; q("#wbAuto").checked = false; mostrarNuvem("Desconectado. O Drive não foi alterado."); };
   }
-  document.addEventListener("DOMContentLoaded", barra);
+  if (window.top === window) document.addEventListener("DOMContentLoaded", barra);   // no fluxograma embutido não há caixa de backup
 })();

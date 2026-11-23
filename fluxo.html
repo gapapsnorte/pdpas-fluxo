@@ -228,6 +228,14 @@ body{padding:0;background:#fff}
 .expf h3{margin:0;font-size:1rem;font-weight:var(--pes)}
 .expf .sc{overflow-x:auto;display:block}.expf .sc svg{min-width:520px}
 .expp{border-left:4px solid var(--line);padding:2px 0 2px 8px;display:flex;flex-direction:column;gap:2px}
+/* modo só-BPMN: o fluxograma em raias embutido no alto da telinha do pedido */
+body.sobpmn{background:transparent;margin:0;overflow:hidden}
+.sobpmn .bar,.sobpmn .ctx{display:none}
+.sobpmn .app,.sobpmn .app.wide{height:auto!important;min-height:0!important;background:transparent}
+.sobpmn .corpo{padding:0;gap:3px}
+.sobpmn .trilho .ab>span+span{display:none}
+.sobpmn .sc{overflow-x:auto;display:block}
+.sobpmn .sc svg{max-height:168px;min-width:0}
 a.bt{text-decoration:none;display:inline-block;padding:3px 12px;border-radius:7px;background:var(--accent);color:var(--sobre);font-weight:var(--pes);font-size:.9rem;border:1px solid var(--accent)}
 </style>
 </head>
@@ -565,6 +573,11 @@ function explicacao(){const p=path(),dx=(t,x)=>x?`<dt>${t}</dt><dd>${ab(x)}</dd>
           +`<dl>${dx("O que pedir",v(n.pd,S.tipo))}${dx("O que volta",n.vt)}${dx("Prazo",n.pz)}${dx("Como obter ou cobrar",n.ob)}${dx("Ao voltar",n.dv)}${dx("Documento",n.doc)}${dx("Base",n.bn)}</dl></div>`}).join("")
         :`<p class="nota">Esta fase não existe em ${TIPO[S.tipo].toLowerCase()}.</p>`)+`</section>`}).join("")+`</div>`}
 
+/* ---------- só o BPMN da fase (embutido na telinha do pedido) ---------- */
+function soBpmn(){const q=path().filter(n=>n.f===S.fase);
+  return trilho()+(q.length?`<div class="sc">${diagram(q)}</div>`:`<div class="aviso">Esta fase não existe em ${TIPO[S.tipo].toLowerCase()}.</div>`)}
+addEventListener("message",e=>{const t=e.data&&e.data.pdpasTipo;if(S.view==="bpmn"&&t&&TP[t]&&S.tipo!==TP[t]){S.tipo=TP[t];render()}});
+
 /* ---------- lista de pedidos ---------- */
 function andamento(p){const t=TP[p.tipo],f=p.fluxo||{},d=f.d||{},a=f.ans||{},q=N.filter(n=>n.tp.includes(t)&&!(n.cond&&a[n.cond]==="n")),c=q.find(n=>d[n.id]!=="d");
   return `${q.filter(n=>d[n.id]==="d").length}/${q.length} · `+(c?`Fase ${c.f+1}: ${F[c.f][0]}`+(d[c.id]==="w"?" (aguardando)":""):"concluído")}
@@ -584,12 +597,13 @@ async function abrirPedido(id){try{PED=await api("/api/pedido?id="+encodeURIComp
 
 /* ---------- montagem e eventos ---------- */
 const $=id=>document.getElementById(id);
-function render(){const C=$("corpo"),A=$("app"),lg=larga();if(!PED&&S.view!=="exp")S.view="pedidos";
+function render(){const C=$("corpo"),A=$("app"),lg=larga();if(!PED&&S.view!=="exp"&&S.view!=="bpmn")S.view="pedidos";
   A.classList.toggle("wide",lg);A.dataset.tema=S.tema;A.dataset.cor=S.cor;
   $("bWide").textContent=S.wide?"Reduzir":"Ampliar";$("estilo").value=S.tema+"-"+S.cor;
   document.querySelectorAll("#vtabs button").forEach(b=>{b.setAttribute("aria-selected",!S.leg&&b.dataset.v===S.view);b.disabled=!PED&&b.dataset.v!=="pedidos"&&b.dataset.v!=="exp"});
   const noPedido=PED&&S.view!=="pedidos";let h,duo=false;
   if(S.leg)h=legenda();
+  else if(S.view==="bpmn")h=soBpmn();
   else if(S.view==="exp")h=explicacao();
   else if(S.view==="pedidos")h=pedidosView();
   else if(S.view==="comparar")h=comparar();
@@ -600,7 +614,8 @@ function render(){const C=$("corpo"),A=$("app"),lg=larga();if(!PED&&S.view!=="ex
   else h=pedidoEstreito();
   $("ctxid").textContent=QUEDA?"A ferramenta foi encerrada: feche esta janela e abra de novo pelo atalho.":noPedido?(PED.codigo||"Serviço")+" · "+PED.item+" · "+TIPO[S.tipo]:S.view==="exp"?"Explicação do processo":"Pedidos em andamento";
   $("res").innerHTML=noPedido?resumo():"";
-  C.className="corpo"+(duo?" duo":"");C.innerHTML=h;if(S.view==="exp"&&!S.leg){const x=$("expf"+S.fase);if(x&&S.fase)x.scrollIntoView()}save()}
+  C.className="corpo"+(duo?" duo":"");C.innerHTML=h;if(S.view==="exp"&&!S.leg){const x=S.alvo?$("xp-"+S.alvo):S.fase?$("expf"+S.fase):null;S.alvo="";if(x)x.scrollIntoView()}
+  if(S.view==="bpmn")parent.postMessage({pdpasAltura:Math.ceil(A.getBoundingClientRect().height)+4},"*");save()}
 async function gerar(chave,rotulo,id){try{const r=await api("/api/gerar_peca",{id:PED.id,peca:chave});PED.arquivos=r.arquivos;montarDocs();log("Minuta gerada: "+r.arquivo+".",id);S.msg="Gerada: "+r.arquivo}catch(e){S.msg="Não gerei "+rotulo+": "+e.message}render()}
 function abrirArq(nome){api("/api/abrir",{alvo:nome?PED.pasta+"\\"+nome:PED.pasta}).catch(e=>{S.msg=e.message;render()})}
 function act(a){S.msg="";const n=S.sel.k==="n"?by(S.sel.id):null,sei=(($("sei")||{}).value||"").trim();
@@ -632,7 +647,7 @@ document.addEventListener("click",async e=>{tip.hidden=true;const t=e.target;let
   if(el=t.closest("[data-p]"))abrirPedido(el.dataset.p);
   else if(el=t.closest("[data-tp]")){if(!PED){S.tipo=el.dataset.tp;render()}}
   else if(el=t.closest("[data-pv]")){S.prev=el.dataset.pv;render()}
-  else if(el=t.closest("[data-n]")){const id=el.dataset.n;if(S.view==="exp"&&!S.leg){const x=$("xp-"+id);if(x)x.scrollIntoView({block:"center"});return}const era=S.view==="pedido"&&!S.leg&&!larga()&&S.sel.k==="n"&&S.sel.id===id&&el.classList.contains("cab");
+  else if(el=t.closest("[data-n]")){const id=el.dataset.n;if(S.view==="bpmn"){parent.postMessage({pdpasIr:location.pathname+"?exp=1&f="+by(id).f+"&n="+encodeURIComponent(id)+"&t="+S.tipo},"*");return}if(S.view==="exp"&&!S.leg){const x=$("xp-"+id);if(x)x.scrollIntoView({block:"center"});return}const era=S.view==="pedido"&&!S.leg&&!larga()&&S.sel.k==="n"&&S.sel.id===id&&el.classList.contains("cab");
     S.msg="";S.view="pedido";S.leg=false;S.fase=by(id).f;S.sub="";S.sel=era?{k:"x"}:{k:"n",id};render()}
   else if(el=t.closest("[data-ir]")){S.view="pedido";selFase(+el.dataset.ir);render()}
   else if(el=t.closest("[data-f]")){selFase(+el.dataset.f);render()}
@@ -643,9 +658,10 @@ document.addEventListener("click",async e=>{tip.hidden=true;const t=e.target;let
   else if(t.id==="bWide"){S.wide=!S.wide;janela(S.wide);render()}});
 document.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches&&e.target.matches("g[tabindex],tr[tabindex]")){e.preventDefault();e.target.dispatchEvent(new MouseEvent("click",{bubbles:true}))}});
 $("estilo").addEventListener("change",e=>{[S.tema,S.cor]=e.target.value.split("-");render()});
-setInterval(()=>fetch("/api/ping").then(()=>{if(QUEDA){QUEDA=false;render()}}).catch(()=>{if(!QUEDA){QUEDA=true;render()}}),8000);
+setInterval(()=>S.view==="bpmn"||fetch("/api/ping").then(()=>{if(QUEDA){QUEDA=false;render()}}).catch(()=>{if(!QUEDA){QUEDA=true;render()}}),8000);
 (async function(){const q=new URLSearchParams(location.search),p=q.get("p");
-  if(q.get("exp")){S.view="exp";S.fase=Math.min(8,Math.max(0,+q.get("f")||0));render()}
+  if(q.get("bpmn")){S.view="bpmn";document.body.classList.add("sobpmn");render();return}
+  if(q.get("exp")){S.view="exp";S.fase=Math.min(8,Math.max(0,+q.get("f")||0));S.alvo=q.get("n")||"";if(TIPO[q.get("t")])S.tipo=q.get("t");render()}
   if(location.search)history.replaceState(null,"",location.pathname);
   await carregarLista();
   if(p)await abrirPedido(p);else if(S.view!=="exp")render()})();
