@@ -17,7 +17,7 @@ html,body{height:100%;margin:0;background:var(--creme);color:var(--tinta);font-f
 .pagina{max-width:760px;height:100%;margin:0 auto;padding:6px 10px 8px;display:flex;flex-direction:column;gap:5px}
 header{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
 h1{margin:0;font-size:16px;font-weight:900}
-header small{color:var(--tinta2);font-weight:700;font-size:11px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header small{color:var(--tinta2);font-weight:700;font-size:11px;flex:1 0 auto;white-space:nowrap}
 .lnk{font:inherit;font-size:11.5px;font-weight:800;color:var(--tinta2);background:none;border:0;cursor:pointer;text-decoration:underline;padding:0}
 /* fluxograma BPMN fixo no alto (vem de /fluxo?bpmn=1) */
 #bpmn{border:0;width:100%;height:216px;flex:none;display:block;background:transparent}
@@ -825,7 +825,7 @@ function restaurar(r){
   if(d.sei&&d.sei.disponivel&&d.sei.devida&&!d.sei.rodando&&!new URLSearchParams(location.search).get("r"))seiIniciar(true);
   if(d.avisos&&d.avisos.length)$("status").textContent=d.avisos.join(" ");
   $("natureza").insertAdjacentHTML("beforeend",d.naturezas.map(n=>`<option value="${esc(n.natureza)}">${esc(n.natureza)} (${moeda(n.total)} em ${d.ano})</option>`).join(""));
-  $("sub").textContent=`${d.n_itens.toLocaleString("pt-BR")} itens · nada sai do aparelho`;
+  $("sub").textContent=`${d.n_itens.toLocaleString("pt-BR")} itens padronizados`;
   const regioes={};
   gsaps.forEach(g=>{const m=g.match(/^(GSAP \d+) (.+)$/)||[g,g,"Outras"];(regioes[m[2]]=regioes[m[2]]||[]).push([m[1],g])});
   $("grade").innerHTML=Object.entries(regioes).map(([nome,lista])=>`<div class="regiao"><h3>${esc(nome)} <span></span></h3>${lista.map(([curto,g])=>{const id="q"+g.replace(/\W/g,"");return `<div class="g"><label for="${esc(id)}">${esc(curto)}</label><button type="button" class="pm" data-d="-1" tabindex="-1" aria-label="Diminuir ${esc(g)}">−</button><input id="${esc(id)}" type="number" min="0" step="1" inputmode="numeric" data-g="${esc(g)}" aria-label="${esc(g)}"><button type="button" class="pm" data-d="1" tabindex="-1" aria-label="Aumentar ${esc(g)}">+</button></div>`}).join("")}</div>`).join("");

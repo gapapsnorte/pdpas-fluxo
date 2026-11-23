@@ -234,11 +234,18 @@ body.sobpmn{background:transparent;margin:0;overflow:hidden}
 .sobpmn .app,.sobpmn .app.wide{height:auto!important;min-height:0!important;background:transparent}
 .sobpmn .corpo{padding:0;gap:3px}
 .sobpmn .trilho .ab>span+span{display:none}
+.bpm{touch-action:none;position:relative;border:1px solid var(--line);border-radius:8px;background:var(--card);overflow:hidden;line-height:0;flex:none}
+.bpm,.bpm *{cursor:zoom-in!important}
+.bpm>svg{display:block;width:100%!important;height:auto!important;max-width:none!important;margin:0!important}
+#bpr{position:absolute;border:2px solid var(--accent);background:rgba(132,103,214,.16);border-radius:4px;pointer-events:none}
+.bpd{font-size:.8rem;color:var(--muted);line-height:1.2}
 .bpw{position:relative}
 .bpz{position:absolute;right:16px;top:4px;display:flex;gap:3px;z-index:2}
 .bpz .mini{background:var(--card);padding:1px 8px;font-size:.84rem;box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .sobpmn #bps{overflow:auto;display:flex;align-items:flex-start;place-items:start;justify-content:flex-start;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+.sobpmn #bps{cursor:grab;user-select:none;-webkit-user-select:none}
 .sobpmn #bps.longe{cursor:zoom-in}
+.sobpmn #bps.arr,.sobpmn #bps.arr *{cursor:grabbing!important}
 #bpl g>text[x="8"]{font-size:7.6px}
 #bpl{position:sticky;left:0;flex:none;z-index:1;background:var(--card)}#bps>svg{flex:none}
 .fx{cursor:pointer}.fx rect{fill:var(--vez-bg);stroke:var(--accent);stroke-width:.8}.fx text{fill:var(--txt);font-weight:700}
@@ -581,27 +588,38 @@ function explicacao(){const p=path(),dx=(t,x)=>x?`<dt>${t}</dt><dd>${ab(x)}</dd>
         :`<p class="nota">Esta fase não existe em ${TIPO[S.tipo].toLowerCase()}.</p>`)+`</section>`}).join("")+`</div>`}
 
 /* ---------- o BPMN do processo inteiro (embutido na telinha do pedido): rola, aproxima e é clicável ---------- */
-function soBpmn(){
-  return trilho()+`<div class="bpw"><div class="bpz"><button class="mini" data-z="-" data-tip="Afastar">−</button><button class="mini" data-z="+" data-tip="Aproximar">+</button><button class="mini" data-z="fit" data-tip="Mostra o processo inteiro. Depois clique na parte que interessa para aproximar.">Inteiro</button><button class="mini" data-z="alto" data-tip="Aumenta ou diminui a altura do desenho.">${S.bpAlto?"Menor":"Maior"}</button></div><div class="sc" id="bps" style="height:${S.bpAlto?400:178}px">${diagram(path())}</div></div>`}
-function bpPos(){const c=$("bps"),sv=c&&c.querySelector("svg:not(#bpl)");if(!sv)return;
-  const vb=sv.viewBox.baseVal,W=vb.width,H=vb.height,ph={};let g="";
+function soBpmn(){const d=diagram(path());
+  return trilho()+`<div class="bpm" id="bpm" data-tip="O processo inteiro em miniatura. Clique numa parte, ou arraste, para ver ampliado logo abaixo.">${d}<div id="bpr" hidden></div></div>`
+    +(S.lupa?`<div class="bpw"><div class="bpz"><button class="mini" data-z="-" data-tip="Afastar">−</button><button class="mini" data-z="+" data-tip="Aproximar">+</button><button class="mini" data-z="fecha" data-tip="Fecha a lupa e deixa só a miniatura.">Fechar a lupa</button></div><div class="sc" id="bps" style="height:204px">${d}</div></div>`
+      :`<p class="bpd">Clique numa parte do desenho para ampliar, como numa lupa.</p>`)}
+function bpFaixas(sv){const vb=sv.viewBox.baseVal,W=vb.width,H=vb.height,ph={};let g="";
   sv.querySelectorAll("g.nd").forEach(el=>{const n=by(el.dataset.n),b=el.getBBox(),o=ph[n.f]||(ph[n.f]=[1e9,0,1e9,0]);
     o[0]=Math.min(o[0],b.x);o[1]=Math.max(o[1],b.x+b.width);o[2]=Math.min(o[2],b.y);o[3]=Math.max(o[3],b.y+b.height)});
-  for(const f in ph){const [a,b]=ph[f];g+=`<g class="fx${+f===S.fase?" at":""}" data-fz="${f}" data-tip="${esc("Fase "+(+f+1)+": "+F[f][0]+". "+F[f][1])}"><rect x="${a-6}" y="-17" width="${b-a+12}" height="14" rx="4"/><text x="${(a+b)/2}" y="-6.5" text-anchor="middle" font-size="9.5">${+f+1}. ${esc(F[f][0])}</text></g>`}
+  for(const f in ph){const [a,b]=ph[f];g+=`<g class="fx${+f===S.fase&&S.lupa?" at":""}" data-fz="${f}" data-tip="${esc("Fase "+(+f+1)+": "+F[f][0]+". "+F[f][1])}"><rect x="${a-6}" y="-17" width="${b-a+12}" height="14" rx="4"/><text x="${(a+b)/2}" y="-6.5" text-anchor="middle" font-size="9.5">${+f+1}. ${esc(F[f][0])}</text></g>`}
   sv.setAttribute("viewBox",`0 -19 ${W} ${H+19}`);sv.insertAdjacentHTML("beforeend",g);
+  S.bpF=ph;S.bpW=W;S.bpH=H+19;return H}
+/* retângulo da lupa sobre a miniatura */
+function bpRet(){const m=$("bpm"),r=$("bpr"),c=$("bps");if(!m||!r)return;if(!c||!S.z){r.hidden=true;return}
+  const k=m.clientWidth/S.bpW/S.z,lb=(PW+LW)*S.z;r.hidden=false;
+  r.style.cssText=`left:${(c.scrollLeft+lb)*k}px;top:${c.scrollTop*k}px;width:${Math.max(6,(c.clientWidth-lb)*k)}px;height:${Math.max(6,Math.min(c.clientHeight,S.bpH*S.z)*k)}px`}
+/* leva a lupa para um ponto da miniatura (coordenadas da tela) */
+function bpMira(x,y){const m=$("bpm"),sv=m&&m.querySelector("svg");if(!sv)return;const r=sv.getBoundingClientRect(),k=r.width/S.bpW,cx=(x-r.left)/k,cy=(y-r.top)/k;
+  if($("bps")){bpZoom(S.z||1,cx-(PW+LW)/2,cy)}else{S.lupa=true;S.bpC=[cx-(PW+LW)/2,cy];S.bpIr=true;render()}}
+function bpPos(){const m=$("bpm"),sm=m&&m.querySelector("svg");if(sm)bpFaixas(sm);
+  const c=$("bps"),sv=c&&c.querySelector("svg:not(#bpl)");if(!sv){bpRet();return}
+  const H=bpFaixas(sv);
   /* coluna fixa com os nomes dos setores: continua à vista quando o desenho rola para os lados */
   const col=[...sv.querySelectorAll("rect.lb,rect.poolx")].map(r=>r.parentNode.outerHTML).join("")+[...sv.children].filter(x=>x.tagName==="text"&&x.getAttribute("transform")).map(x=>x.outerHTML).join("");
   c.insertAdjacentHTML("afterbegin",`<svg id="bpl" viewBox="0 -19 ${PW+LW} ${H+19}"><rect x="0" y="-19" width="${PW+LW}" height="${H+19}" fill="var(--card)"/><rect class="pool" x="0" y="0" width="${PW+LW+2}" height="${sv.querySelector("rect.pool").getAttribute("height")}"/>${col}</svg>`);
-  S.bpF=ph;S.bpW=W;S.bpH=H+19;
-  if(S.bpC)bpZoom(S.z,S.bpC[0],S.bpC[1]);else{bpZoom(S.z||1,0,0);bpFase(S.fase)}}
+  if(S.bpC)bpZoom(S.z||1,S.bpC[0],S.bpC[1]);else{bpZoom(S.z||1,0,0);bpFase(S.fase)}}
 function bpZoom(z,cx,cy){const c=$("bps"),sv=c&&c.querySelector("svg:not(#bpl)");if(!sv)return;const fit=Math.min((c.clientWidth-4)/S.bpW,1);
   if(cx===undefined){const o=S.z||1;cx=(c.scrollLeft+c.clientWidth/2)/o;cy=(c.scrollTop+c.clientHeight/2)/o}
-  if(z==="fit")z=fit;z=Math.max(fit,Math.min(2.4,z));S.z=z;
+  if(z==="fit")z=fit;z=Math.max(.6,Math.min(2.4,z));S.z=z;
   sv.style.cssText=`display:block;width:${S.bpW*z}px;height:${S.bpH*z}px;max-width:none;margin:0 0 0 ${-(PW+LW)*z}px`;
   $("bpl").style.cssText=`width:${(PW+LW)*z}px;height:${S.bpH*z}px`;c.classList.toggle("longe",z<.7);
-  c.scrollLeft=cx*z-c.clientWidth/2;c.scrollTop=cy*z-c.clientHeight/2}
+  c.scrollLeft=cx*z-c.clientWidth/2;c.scrollTop=cy*z-c.clientHeight/2;bpRet()}
 function bpFase(f){const c=$("bps"),o=S.bpF&&S.bpF[f];if(!c||!o)return;if(S.z<.7)bpZoom(1,0,0);
-  c.scrollLeft=(o[0]-(PW+LW)-22)*S.z;c.scrollTop=((o[2]+o[3])/2+19)*S.z-c.clientHeight/2}
+  c.scrollLeft=(o[0]-(PW+LW)-22)*S.z;c.scrollTop=((o[2]+o[3])/2+19)*S.z-c.clientHeight/2;bpRet()}
 addEventListener("message",e=>{const t=e.data&&e.data.pdpasTipo;if(S.view==="bpmn"&&t&&TP[t]&&S.tipo!==TP[t]){S.tipo=TP[t];render()}});
 
 /* ---------- lista de pedidos ---------- */
@@ -670,12 +688,21 @@ function showTip(el){tip.textContent=el.dataset.tip;tip.hidden=false;const r=el.
 document.addEventListener("mouseover",e=>{const el=e.target.closest&&e.target.closest("[data-tip]");if(el)showTip(el);else tip.hidden=true});
 document.addEventListener("focusin",e=>{const el=e.target.closest&&e.target.closest("[data-tip]");if(el&&e.target.matches(":focus-visible"))showTip(el)});
 ["focusout","scroll"].forEach(ev=>document.addEventListener(ev,()=>{tip.hidden=true},true));
+/* mãozinha: clicar e arrastar move o desenho (no toque, o dedo já rola sozinho) */
+let arr=null;
+document.addEventListener("pointerdown",e=>{if(S.view!=="bpmn"||e.button)return;
+  if(e.target.closest("#bpm")){arr={mini:true};bpMira(e.clientX,e.clientY);return}
+  const c=$("bps");if(!c||!c.contains(e.target)||e.pointerType==="touch")return;
+  arr={x:e.clientX,y:e.clientY,l:c.scrollLeft,t:c.scrollTop,m:false}});
+function solta(){if(!arr)return;const m=arr.m,c=$("bps");arr=null;if(c)c.classList.remove("arr");if(m){S.arrastou=true;setTimeout(()=>{S.arrastou=false},80)}}
+document.addEventListener("pointermove",e=>{if(!arr)return;if(!e.buttons)return solta();if(arr.mini){bpMira(e.clientX,e.clientY);e.preventDefault();return}const c=$("bps"),dx=e.clientX-arr.x,dy=e.clientY-arr.y;
+  if(!arr.m&&Math.abs(dx)+Math.abs(dy)<5)return;arr.m=true;tip.hidden=true;c.classList.add("arr");c.scrollLeft=arr.l-dx;c.scrollTop=arr.t-dy;e.preventDefault()});
+["pointerup","pointercancel"].forEach(ev=>document.addEventListener(ev,solta));
+document.addEventListener("scroll",e=>{if(e.target&&e.target.id==="bps")bpRet()},true);
 document.addEventListener("click",async e=>{tip.hidden=true;const t=e.target;let el;
-  if(S.view==="bpmn"){const c=$("bps");
-    if(el=t.closest("[data-z]")){const k=el.dataset.z;if(k==="alto"){S.bpAlto=!S.bpAlto;render()}else bpZoom(k==="fit"?"fit":S.z*(k==="+"?1.35:1/1.35))}
-    else if(el=t.closest("[data-f]")){S.fase=+el.dataset.f;S.bpIr=true;render()}
-    else if(c&&c.contains(t)&&S.z<.7){const r=c.querySelector("svg:not(#bpl)").getBoundingClientRect();bpZoom(1,(e.clientX-r.left)/S.z,(e.clientY-r.top)/S.z)}
-    else if(el=t.closest("[data-fz]")){S.fase=+el.dataset.fz;S.bpIr=true;render()}
+  if(S.view==="bpmn"){if(S.arrastou||t.closest("#bpm"))return;
+    if(el=t.closest("[data-z]")){const k=el.dataset.z;if(k==="fecha"){S.lupa=false;S.bpIr=true;S.bpC=null;render()}else bpZoom(S.z*(k==="+"?1.3:1/1.3))}
+    else if(el=t.closest("[data-f],[data-fz]")){S.fase=+(el.dataset.f||el.dataset.fz);S.lupa=true;S.bpIr=true;S.bpC=null;render()}
     else if(el=t.closest("[data-n]")){const id=el.dataset.n;parent.postMessage({pdpasIr:location.pathname+"?exp=1&f="+by(id).f+"&n="+encodeURIComponent(id)+"&t="+S.tipo},"*")}
     return}
   if(el=t.closest("[data-p]"))abrirPedido(el.dataset.p);
