@@ -226,7 +226,7 @@ body{padding:0;background:#fff}
 .abas button{padding-left:6px;padding-right:6px;font-size:.84rem}
 .expf{display:flex;flex-direction:column;gap:5px;padding:7px 0;border-top:1px solid var(--line)}
 .expf h3{margin:0;font-size:1rem;font-weight:var(--pes)}
-.expf .sc{overflow-x:auto;display:block}.expf .sc svg{min-width:520px}
+.expf .sc{overflow-x:auto;display:block;place-items:start}.expf .sc svg{min-width:520px}
 .expp{border-left:4px solid var(--line);padding:2px 0 2px 8px;display:flex;flex-direction:column;gap:2px}
 /* modo só-BPMN: o fluxograma em raias embutido no alto da telinha do pedido */
 body.sobpmn{background:transparent;margin:0;overflow:hidden}
@@ -234,8 +234,15 @@ body.sobpmn{background:transparent;margin:0;overflow:hidden}
 .sobpmn .app,.sobpmn .app.wide{height:auto!important;min-height:0!important;background:transparent}
 .sobpmn .corpo{padding:0;gap:3px}
 .sobpmn .trilho .ab>span+span{display:none}
-.sobpmn .sc{overflow-x:auto;display:block}
-.sobpmn .sc svg{max-height:168px;min-width:0}
+.bpw{position:relative}
+.bpz{position:absolute;right:16px;top:4px;display:flex;gap:3px;z-index:2}
+.bpz .mini{background:var(--card);padding:1px 8px;font-size:.84rem;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.sobpmn #bps{overflow:auto;display:flex;align-items:flex-start;place-items:start;justify-content:flex-start;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+.sobpmn #bps.longe{cursor:zoom-in}
+#bpl g>text[x="8"]{font-size:7.6px}
+#bpl{position:sticky;left:0;flex:none;z-index:1;background:var(--card)}#bps>svg{flex:none}
+.fx{cursor:pointer}.fx rect{fill:var(--vez-bg);stroke:var(--accent);stroke-width:.8}.fx text{fill:var(--txt);font-weight:700}
+.fx.at rect{fill:var(--accent)}.fx.at text{fill:var(--sobre)}
 a.bt{text-decoration:none;display:inline-block;padding:3px 12px;border-radius:7px;background:var(--accent);color:var(--sobre);font-weight:var(--pes);font-size:.9rem;border:1px solid var(--accent)}
 </style>
 </head>
@@ -573,9 +580,28 @@ function explicacao(){const p=path(),dx=(t,x)=>x?`<dt>${t}</dt><dd>${ab(x)}</dd>
           +`<dl>${dx("O que pedir",v(n.pd,S.tipo))}${dx("O que volta",n.vt)}${dx("Prazo",n.pz)}${dx("Como obter ou cobrar",n.ob)}${dx("Ao voltar",n.dv)}${dx("Documento",n.doc)}${dx("Base",n.bn)}</dl></div>`}).join("")
         :`<p class="nota">Esta fase não existe em ${TIPO[S.tipo].toLowerCase()}.</p>`)+`</section>`}).join("")+`</div>`}
 
-/* ---------- só o BPMN da fase (embutido na telinha do pedido) ---------- */
-function soBpmn(){const q=path().filter(n=>n.f===S.fase);
-  return trilho()+(q.length?`<div class="sc">${diagram(q)}</div>`:`<div class="aviso">Esta fase não existe em ${TIPO[S.tipo].toLowerCase()}.</div>`)}
+/* ---------- o BPMN do processo inteiro (embutido na telinha do pedido): rola, aproxima e é clicável ---------- */
+function soBpmn(){
+  return trilho()+`<div class="bpw"><div class="bpz"><button class="mini" data-z="-" data-tip="Afastar">−</button><button class="mini" data-z="+" data-tip="Aproximar">+</button><button class="mini" data-z="fit" data-tip="Mostra o processo inteiro. Depois clique na parte que interessa para aproximar.">Inteiro</button><button class="mini" data-z="alto" data-tip="Aumenta ou diminui a altura do desenho.">${S.bpAlto?"Menor":"Maior"}</button></div><div class="sc" id="bps" style="height:${S.bpAlto?400:178}px">${diagram(path())}</div></div>`}
+function bpPos(){const c=$("bps"),sv=c&&c.querySelector("svg:not(#bpl)");if(!sv)return;
+  const vb=sv.viewBox.baseVal,W=vb.width,H=vb.height,ph={};let g="";
+  sv.querySelectorAll("g.nd").forEach(el=>{const n=by(el.dataset.n),b=el.getBBox(),o=ph[n.f]||(ph[n.f]=[1e9,0,1e9,0]);
+    o[0]=Math.min(o[0],b.x);o[1]=Math.max(o[1],b.x+b.width);o[2]=Math.min(o[2],b.y);o[3]=Math.max(o[3],b.y+b.height)});
+  for(const f in ph){const [a,b]=ph[f];g+=`<g class="fx${+f===S.fase?" at":""}" data-fz="${f}" data-tip="${esc("Fase "+(+f+1)+": "+F[f][0]+". "+F[f][1])}"><rect x="${a-6}" y="-17" width="${b-a+12}" height="14" rx="4"/><text x="${(a+b)/2}" y="-6.5" text-anchor="middle" font-size="9.5">${+f+1}. ${esc(F[f][0])}</text></g>`}
+  sv.setAttribute("viewBox",`0 -19 ${W} ${H+19}`);sv.insertAdjacentHTML("beforeend",g);
+  /* coluna fixa com os nomes dos setores: continua à vista quando o desenho rola para os lados */
+  const col=[...sv.querySelectorAll("rect.lb,rect.poolx")].map(r=>r.parentNode.outerHTML).join("")+[...sv.children].filter(x=>x.tagName==="text"&&x.getAttribute("transform")).map(x=>x.outerHTML).join("");
+  c.insertAdjacentHTML("afterbegin",`<svg id="bpl" viewBox="0 -19 ${PW+LW} ${H+19}"><rect x="0" y="-19" width="${PW+LW}" height="${H+19}" fill="var(--card)"/><rect class="pool" x="0" y="0" width="${PW+LW+2}" height="${sv.querySelector("rect.pool").getAttribute("height")}"/>${col}</svg>`);
+  S.bpF=ph;S.bpW=W;S.bpH=H+19;
+  if(S.bpC)bpZoom(S.z,S.bpC[0],S.bpC[1]);else{bpZoom(S.z||1,0,0);bpFase(S.fase)}}
+function bpZoom(z,cx,cy){const c=$("bps"),sv=c&&c.querySelector("svg:not(#bpl)");if(!sv)return;const fit=Math.min((c.clientWidth-4)/S.bpW,1);
+  if(cx===undefined){const o=S.z||1;cx=(c.scrollLeft+c.clientWidth/2)/o;cy=(c.scrollTop+c.clientHeight/2)/o}
+  if(z==="fit")z=fit;z=Math.max(fit,Math.min(2.4,z));S.z=z;
+  sv.style.cssText=`display:block;width:${S.bpW*z}px;height:${S.bpH*z}px;max-width:none;margin:0 0 0 ${-(PW+LW)*z}px`;
+  $("bpl").style.cssText=`width:${(PW+LW)*z}px;height:${S.bpH*z}px`;c.classList.toggle("longe",z<.7);
+  c.scrollLeft=cx*z-c.clientWidth/2;c.scrollTop=cy*z-c.clientHeight/2}
+function bpFase(f){const c=$("bps"),o=S.bpF&&S.bpF[f];if(!c||!o)return;if(S.z<.7)bpZoom(1,0,0);
+  c.scrollLeft=(o[0]-(PW+LW)-22)*S.z;c.scrollTop=((o[2]+o[3])/2+19)*S.z-c.clientHeight/2}
 addEventListener("message",e=>{const t=e.data&&e.data.pdpasTipo;if(S.view==="bpmn"&&t&&TP[t]&&S.tipo!==TP[t]){S.tipo=TP[t];render()}});
 
 /* ---------- lista de pedidos ---------- */
@@ -597,7 +623,7 @@ async function abrirPedido(id){try{PED=await api("/api/pedido?id="+encodeURIComp
 
 /* ---------- montagem e eventos ---------- */
 const $=id=>document.getElementById(id);
-function render(){const C=$("corpo"),A=$("app"),lg=larga();if(!PED&&S.view!=="exp"&&S.view!=="bpmn")S.view="pedidos";
+function render(){const C=$("corpo"),A=$("app"),lg=larga();{const c=$("bps");if(c&&S.z&&!S.bpIr)S.bpC=[(c.scrollLeft+c.clientWidth/2)/S.z,(c.scrollTop+c.clientHeight/2)/S.z];S.bpIr=false}if(!PED&&S.view!=="exp"&&S.view!=="bpmn")S.view="pedidos";
   A.classList.toggle("wide",lg);A.dataset.tema=S.tema;A.dataset.cor=S.cor;
   $("bWide").textContent=S.wide?"Reduzir":"Ampliar";$("estilo").value=S.tema+"-"+S.cor;
   document.querySelectorAll("#vtabs button").forEach(b=>{b.setAttribute("aria-selected",!S.leg&&b.dataset.v===S.view);b.disabled=!PED&&b.dataset.v!=="pedidos"&&b.dataset.v!=="exp"});
@@ -615,6 +641,7 @@ function render(){const C=$("corpo"),A=$("app"),lg=larga();if(!PED&&S.view!=="ex
   $("ctxid").textContent=QUEDA?"A ferramenta foi encerrada: feche esta janela e abra de novo pelo atalho.":noPedido?(PED.codigo||"Serviço")+" · "+PED.item+" · "+TIPO[S.tipo]:S.view==="exp"?"Explicação do processo":"Pedidos em andamento";
   $("res").innerHTML=noPedido?resumo():"";
   C.className="corpo"+(duo?" duo":"");C.innerHTML=h;if(S.view==="exp"&&!S.leg){const x=S.alvo?$("xp-"+S.alvo):S.fase?$("expf"+S.fase):null;S.alvo="";if(x)x.scrollIntoView()}
+  if(S.view==="bpmn"){bpPos();S.bpC=null}
   if(S.view==="bpmn")parent.postMessage({pdpasAltura:Math.ceil(A.getBoundingClientRect().height)+4},"*");save()}
 async function gerar(chave,rotulo,id){try{const r=await api("/api/gerar_peca",{id:PED.id,peca:chave});PED.arquivos=r.arquivos;montarDocs();log("Minuta gerada: "+r.arquivo+".",id);S.msg="Gerada: "+r.arquivo}catch(e){S.msg="Não gerei "+rotulo+": "+e.message}render()}
 function abrirArq(nome){api("/api/abrir",{alvo:nome?PED.pasta+"\\"+nome:PED.pasta}).catch(e=>{S.msg=e.message;render()})}
@@ -644,6 +671,13 @@ document.addEventListener("mouseover",e=>{const el=e.target.closest&&e.target.cl
 document.addEventListener("focusin",e=>{const el=e.target.closest&&e.target.closest("[data-tip]");if(el&&e.target.matches(":focus-visible"))showTip(el)});
 ["focusout","scroll"].forEach(ev=>document.addEventListener(ev,()=>{tip.hidden=true},true));
 document.addEventListener("click",async e=>{tip.hidden=true;const t=e.target;let el;
+  if(S.view==="bpmn"){const c=$("bps");
+    if(el=t.closest("[data-z]")){const k=el.dataset.z;if(k==="alto"){S.bpAlto=!S.bpAlto;render()}else bpZoom(k==="fit"?"fit":S.z*(k==="+"?1.35:1/1.35))}
+    else if(el=t.closest("[data-f]")){S.fase=+el.dataset.f;S.bpIr=true;render()}
+    else if(c&&c.contains(t)&&S.z<.7){const r=c.querySelector("svg:not(#bpl)").getBoundingClientRect();bpZoom(1,(e.clientX-r.left)/S.z,(e.clientY-r.top)/S.z)}
+    else if(el=t.closest("[data-fz]")){S.fase=+el.dataset.fz;S.bpIr=true;render()}
+    else if(el=t.closest("[data-n]")){const id=el.dataset.n;parent.postMessage({pdpasIr:location.pathname+"?exp=1&f="+by(id).f+"&n="+encodeURIComponent(id)+"&t="+S.tipo},"*")}
+    return}
   if(el=t.closest("[data-p]"))abrirPedido(el.dataset.p);
   else if(el=t.closest("[data-tp]")){if(!PED){S.tipo=el.dataset.tp;render()}}
   else if(el=t.closest("[data-pv]")){S.prev=el.dataset.pv;render()}
