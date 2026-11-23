@@ -215,6 +215,15 @@ def _rota(metodo: str, caminho: str, q: dict, d: dict):
         return {"ok": True}
     if caminho in ("/api/sei_sync", "/api/sei_adiar", "/api/abrir_dados"):
         raise ValueError("Isso só existe na ferramenta instalada no computador.")
+    if caminho == "/api/planilha":
+        import controle
+        regras = motor.carregar_regras()
+        linhas = [controle.linha_pedido(i, r.get("pedido") or {}, r.get("fluxo") or {}, _info(i, r)["item"], r.get("criado_br") or "",
+                                        len(r.get("arquivos") or []), CAT, regras)
+                  for i, r in sorted(estado["pedidos"].items(), key=lambda kv: kv[1].get("criado", ""), reverse=True)]
+        linhas += controle.linhas_compras(motor.hist())
+        return {"__download": {"nome": "Controle de compras PDPAS.csv", "mime": "text/csv",
+                               "b64": base64.b64encode(controle.csv_texto(linhas).encode("utf-8")).decode()}}
     if caminho == "/api/pedidos":
         lista = sorted(estado["pedidos"].items(), key=lambda kv: kv[1].get("criado", ""), reverse=True)
         return {"pedidos": [_info(i, r) for i, r in lista]}

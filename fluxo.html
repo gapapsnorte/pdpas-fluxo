@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<script src="web_backend.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ferramenta PDPAS</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" media="print" onload="this.media='all'">
+<style>
+/* Layout: janela de aplicativo. Meia tela (640x672): trilho de fases + fluxo vertical com a ação dentro do passo.
+   Tela larga (1240x760): BPMN horizontal com raias + resumo da fase à esquerda, painel do passo à direita.
+   Codificação: setor = etiqueta e friso de 4 px; estado = preenchimento e ícone. Tema claro único, por escolha. */
+:root{color-scheme:light}
+*{box-sizing:border-box}
+html{font-size:14px}
+body{margin:0;background:#e9ebf0;color:#1d2430;font:13px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding-block:12px 24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.fora{max-width:640px;margin:0 auto 8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:.85rem;color:#5b6575}
+.fora.wideN{max-width:1240px}
+.fora button{font:inherit;padding:4px 10px;border:1px solid #cfd5de;border-radius:999px;background:#fff;color:#1d2430;cursor:pointer}
+.fora button[aria-pressed="true"]{background:#1d2430;border-color:#1d2430;color:#fff;font-weight:600}
+.fora select{font:inherit;padding:3px 6px;border:1px solid #cfd5de;border-radius:7px;background:#fff;color:#1d2430;margin-left:auto}
+.app{--bg:#FFF7F1;--card:#fff;--txt:#4B3F5E;--muted:#67597A;--line:#E8DCF0;--accent:#8467D6;--sobre:#fff;--out:#3F9673;--feito-bg:#C6EEDC;
+  --alerta-bg:#FFE9B5;--alerta-txt:#8A6510;--aviso-bg:#FFE3EA;--aviso-txt:#A12C52;--vez-bg:#DCCFF8;--bar:#4B3F5E;--bar-txt:#fff;--sel:#D9537A;
+  --c0:#FFD9E1;--c1:#E6DCFA;--c2:#F6DFF7;--c3:#D5E6F8;--c4:#FFDCC6;--c5:#D3F0E3;
+  --s0:#E8688A;--s1:#9478DE;--s2:#C76BD1;--s3:#5B9BD8;--s4:#E8935A;--s5:#4FA882;--f:"Nunito","Segoe UI",system-ui,sans-serif;--pes:700}
+.app[data-tema="serio"]{--bg:#f6f7f9;--card:#fff;--txt:#1d2430;--muted:#5b6575;--line:#e2e6ec;--accent:#1f5fa8;--sobre:#fff;--out:#13915a;--feito-bg:#dff1e7;
+  --alerta-bg:#fff0d9;--alerta-txt:#8a4b00;--aviso-bg:#fdecec;--aviso-txt:#8f1d1d;--vez-bg:#dbe8f8;--bar:#1f5fa8;--bar-txt:#fff;--sel:#1d2430;
+  --c0:#d9e7f7;--c1:#e4e1f6;--c2:#eee3f1;--c3:#d6efe9;--c4:#fbe8cc;--c5:#deeeda;
+  --s0:#1f5fa8;--s1:#5a55b5;--s2:#8e5aa8;--s3:#1f8f86;--s4:#c07a12;--s5:#3f8f4a;--f:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--pes:600}
+.app{width:640px;max-width:100%;height:672px;margin:0 auto;background:var(--bg);color:var(--txt);font-family:var(--f);border-radius:12px;
+  border:1px solid var(--line);box-shadow:0 6px 24px rgba(29,36,48,.16);overflow:hidden;display:flex;flex-direction:column}
+.app.wide{width:1240px;height:760px}
+button,select,input{font:inherit}
+button{cursor:pointer;color:var(--txt)}
+:is(button,a,select,input,[tabindex="0"]):focus-visible{outline:2px solid var(--sel);outline-offset:1px}
+/* barra e contexto */
+.bar{background:var(--bar);color:var(--bar-txt);display:flex;align-items:stretch;gap:10px;padding:0 8px 0 10px;flex:none}
+.bar>b{align-self:center;font-size:1.02rem;font-weight:var(--pes)}.bar .sp{flex:1}
+.bar>button{align-self:center;padding:2px 9px;background:transparent;color:var(--bar-txt);border:1px solid rgba(255,255,255,.45);border-radius:7px;font-size:.88rem}
+.abas{display:flex;gap:2px;align-self:flex-end}
+.abas button{border:0;background:none;color:var(--bar-txt);opacity:.82;padding:5px 9px 4px;margin-top:6px;border-radius:7px 7px 0 0;font-size:.88rem}
+.abas button[aria-selected="true"]{background:var(--card);color:var(--txt);opacity:1;font-weight:var(--pes)}
+.ctx{display:flex;align-items:center;gap:8px;padding:3px 10px;background:var(--card);border-bottom:1px solid var(--line);font-size:.86rem;flex:none}
+.ctx .id{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res{display:flex;gap:4px;flex:none}
+.res>*{font-size:.78rem;border-radius:999px;padding:0 8px;border:1px solid var(--line);background:var(--card);color:var(--muted);white-space:nowrap}
+.res .ok{background:var(--feito-bg);border-color:transparent;color:var(--txt)}
+.res .w{background:var(--alerta-bg);border-color:var(--alerta-txt);color:var(--alerta-txt);font-weight:var(--pes)}
+/* corpo */
+.corpo{flex:1;min-height:0;padding:6px;display:flex;flex-direction:column;gap:5px}
+.corpo.duo{display:grid;grid-template-columns:minmax(0,1fr) 380px;grid-template-rows:minmax(0,1fr)}
+.col{display:flex;flex-direction:column;gap:5px;min-height:0;min-width:0}
+.cartao{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:6px 9px;min-width:0;display:flex;flex-direction:column;gap:5px}
+.cresce{flex:1;min-height:0}.rol{overflow:auto}
+.fh{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:none}
+.fh h2{font-size:.95rem;font-weight:var(--pes);margin:0;flex:1}
+.mini{padding:0 8px;font-size:.8rem;border:1px solid var(--line);border-radius:7px;background:var(--card)}
+.mini[aria-pressed="true"]{background:var(--bg);border-color:var(--accent);font-weight:var(--pes)}
+p{margin:0}
+.nota{color:var(--muted);font-size:.8rem;overflow-wrap:anywhere}
+.aviso{background:var(--aviso-bg);color:var(--aviso-txt);border-radius:8px;padding:5px 9px}
+.num{white-space:nowrap;font-variant-numeric:tabular-nums}
+abbr{text-decoration:underline dotted;text-underline-offset:2px;cursor:help}
+h4{margin:2px 0 0;font-size:.78rem;font-weight:var(--pes);color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+/* trilho das fases */
+.trilho{display:flex;align-items:center;gap:3px;flex:none}
+.trilho .ev{width:11px;height:11px;border-radius:50%;border:1.5px solid var(--txt);background:var(--card);flex:none}
+.trilho .ev.fim{border-width:3.5px}
+.trilho i{flex:none;width:5px;height:1.4px;background:var(--txt)}
+.trilho button{flex:none;min-width:30px;height:24px;padding:0 6px;border:1.4px solid var(--txt);border-radius:6px;background:var(--card);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trilho .done{background:var(--feito-bg);border-color:var(--out)}
+.trilho .wait{background:var(--alerta-bg);border-color:var(--alerta-txt)}
+.trilho .cur{background:var(--vez-bg);border-color:var(--accent)}
+.trilho .na{opacity:.45;border-style:dashed}
+.trilho .ab{flex:1;min-width:0;text-align:left;font-weight:var(--pes);border-width:2.4px}
+/* fluxo vertical (meia tela) */
+.fluxo{display:flex;flex-direction:column}
+.ps{display:grid;grid-template-columns:88px 24px minmax(0,1fr);gap:0 4px;align-items:start}
+.setor,.tag{display:inline-block;font-size:11px;border-radius:999px;padding:0 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.ps .setor{justify-self:end;margin-top:6px}
+.b0{background:var(--c0)}.b1{background:var(--c1)}.b2{background:var(--c2)}.b3{background:var(--c3)}.b4{background:var(--c4)}.b5{background:var(--c5)}
+.app[data-cor="mais"] .b0{background:var(--s0);color:#fff}.app[data-cor="mais"] .b1{background:var(--s1);color:#fff}.app[data-cor="mais"] .b2{background:var(--s2);color:#fff}
+.app[data-cor="mais"] .b3{background:var(--s3);color:#fff}.app[data-cor="mais"] .b4{background:var(--s4);color:#fff}.app[data-cor="mais"] .b5{background:var(--s5);color:#fff}
+.esp{position:relative;align-self:stretch;display:flex;justify-content:center}
+.esp::before{content:"";position:absolute;top:0;bottom:0;left:50%;width:1.6px;margin-left:-.8px;background:var(--txt)}
+.ps.ini .esp::before{top:8px}.ps.fim .esp::before{bottom:auto;height:6px}
+.mc{position:relative;margin-top:5px;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--txt);background:var(--card);display:grid;place-items:center;font-size:11px;font-weight:var(--pes);line-height:1}
+.mc.done{background:var(--feito-bg);border-color:var(--out)}.mc.wait{background:var(--alerta-bg);border-color:var(--alerta-txt);color:var(--alerta-txt)}
+.mc.cur{background:var(--vez-bg);border-color:var(--accent);border-width:2.4px}
+.mc.gw{border-radius:2px;transform:rotate(45deg);width:16px;height:16px;margin-top:8px}.mc.gw span{transform:rotate(-45deg);font-size:13px}
+.mc.tm{box-shadow:inset 0 0 0 2px var(--card),inset 0 0 0 3px var(--txt)}
+.ps.ini .mc,.ps.fim .mc{width:12px;height:12px;margin-top:3px}.ps.fim .mc{border-width:4px}
+.ps.ini,.ps.fim{color:var(--muted);font-size:11px;min-height:19px}.ps.ini>span:last-child,.ps.fim>span:last-child{padding-top:2px}
+.tc{margin:2px 0;border:1px solid var(--line);border-left:4px solid var(--muted);border-radius:7px;background:var(--card);min-width:0;overflow:hidden}
+.tc.done{background:var(--feito-bg)}.tc.wait{background:var(--alerta-bg)}.tc.cur{background:var(--vez-bg)}.tc.skip{opacity:.4}
+.tc.sel{box-shadow:0 0 0 2px var(--sel)}
+.cab{display:flex;align-items:center;gap:6px;width:100%;padding:4px 8px;border:0;background:none;text-align:left;font-weight:var(--pes);font-size:13px}
+.cab>span:first-child{flex:1;min-width:0}
+.cab .stt{font-size:11px;font-weight:400;color:var(--muted);white-space:nowrap}
+.cab small{font-weight:400}
+.corp{background:var(--card);border-top:1px solid var(--line);padding:5px 8px 7px;display:flex;flex-direction:column;gap:5px}
+.docic{flex:none;width:9px;height:12px;background:var(--accent);clip-path:polygon(0 0,62% 0,100% 28%,100% 100%,0 100%)}
+/* checklist do passo */
+.passos{list-style:none;margin:0;padding:0;counter-reset:p;display:flex;flex-direction:column}
+.passos li{counter-increment:p;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:3px 0;border-bottom:1px solid var(--line)}
+.passos li:last-child{border-bottom:0}
+.passos li::before{content:counter(p);flex:none;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--muted);font-size:.74rem;font-weight:var(--pes);display:grid;place-items:center;color:var(--muted)}
+.passos li.ok::before{content:"✓";background:var(--feito-bg);border-color:var(--out);color:var(--txt)}
+.passos li.ok>span{color:var(--muted)}
+.passos li>span{flex:1 1 220px;min-width:0}
+.ramo{display:flex;gap:8px;align-items:center}
+.passos button,.passos input,.ramo button,.botoes button{padding:2px 10px;border-radius:7px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-weight:var(--pes);font-size:.88rem}
+.passos input{width:150px;background:var(--card);color:var(--txt);border-color:var(--line);font-weight:400}
+.pri{background:var(--accent)!important;color:var(--sobre)!important}
+.lnk{border-color:transparent!important;text-decoration:underline;text-underline-offset:3px}
+.botoes,.tg{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+dl{margin:0;display:grid;grid-template-columns:minmax(92px,auto) 1fr;gap:2px 10px}
+dt{color:var(--muted);font-size:.82rem}dd{margin:0}
+.falta{background:var(--alerta-bg);color:var(--alerta-txt);border-radius:6px;padding:0 7px;font-size:.78rem}
+.hist{list-style:none;margin:0;padding:0}
+.hist li{display:grid;grid-template-columns:auto 1fr;gap:8px;border-bottom:1px solid var(--line);padding:2px 0}
+.hist time{color:var(--muted);font-size:.82rem;white-space:nowrap;font-variant-numeric:tabular-nums}
+/* painel (tela larga) */
+.pt{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.pt h3{margin:0;font-size:1.05rem;font-weight:var(--pes);line-height:1.2;text-wrap:balance}
+.st{font-size:11px;border-radius:999px;padding:0 8px;border:1px solid var(--line);white-space:nowrap}
+.st.done{background:var(--feito-bg);border-color:transparent}.st.wait{background:var(--alerta-bg);border-color:transparent;color:var(--alerta-txt)}
+.st.cur{background:var(--accent);border-color:var(--accent);color:var(--sobre);font-weight:var(--pes)}
+.sc{display:grid;place-items:center;min-height:0}.sc svg{display:block}
+/* mapa do processo */
+.mapa{display:flex;flex-direction:column;gap:3px;flex:1;min-height:0;overflow:auto}
+.mfa{flex:1;display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px;align-items:center;padding:2px 7px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+.mfa.at{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}.mfa.na{opacity:.5}
+.nm{border:0;background:none;text-align:left;font-weight:var(--pes);font-size:12.5px;padding:0}
+.nm small{display:block;font-weight:400;color:var(--muted);font-size:11px}
+.seq{display:flex;flex-wrap:wrap;gap:3px 2px;align-items:center}
+.no{display:inline-flex;align-items:center;gap:4px;font-size:12px;border:1px solid var(--line);border-left:4px solid var(--muted);border-radius:6px;padding:1px 6px;background:var(--card)}
+.no.done{background:var(--feito-bg)}.no.wait{background:var(--alerta-bg)}.no.cur{background:var(--vez-bg);font-weight:var(--pes)}.no.skip{opacity:.4}
+.no.sel{box-shadow:0 0 0 2px var(--sel)}
+.seta{color:var(--muted);font-size:11px}
+/* tabelas */
+table{border-collapse:collapse;font-size:.88rem;width:100%}
+td,th{padding:3px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:var(--pes)}
+td small{display:block;color:var(--muted)}
+td.arq{overflow-wrap:anywhere}
+td.nao{color:var(--muted)}
+tr.dif td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+tr.dif td{background:color-mix(in srgb,var(--bg) 60%,var(--card))}
+.selo{font-size:10px;border:1px solid var(--accent);color:var(--accent);border-radius:999px;padding:0 6px;margin-left:4px;white-space:nowrap}
+tr.clicavel{cursor:pointer}tr.clicavel:hover td{background:var(--bg)}
+.leg{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px 16px}
+.leg div{display:grid;grid-template-columns:54px 1fr;gap:10px;align-items:center}.leg b{display:block}
+#tip{position:fixed;z-index:50;max-width:300px;background:#1d2430;color:#fff;border-radius:7px;padding:6px 9px;font-size:.8rem;box-shadow:0 2px 8px rgba(0,0,0,.2);pointer-events:none}
+/* desenho BPMN (tela larga) */
+svg text{font-family:var(--f);fill:var(--txt)}
+.mkf{fill:var(--txt)}.mko{fill:var(--card);stroke:var(--txt)}
+.pool,.poolx{fill:var(--bg);stroke:var(--muted)}
+.ln{fill:var(--card);stroke:var(--muted);stroke-width:.8}.lb{stroke:var(--muted);stroke-width:.8}
+.c0{fill:var(--c0)}.c1{fill:var(--c1)}.c2{fill:var(--c2)}.c3{fill:var(--c3)}.c4{fill:var(--c4)}.c5{fill:var(--c5)}
+.s0{fill:var(--s0)}.s1{fill:var(--s1)}.s2{fill:var(--s2)}.s3{fill:var(--s3)}.s4{fill:var(--s4)}.s5{fill:var(--s5)}
+.app[data-cor="mais"] .ln.k0{fill:color-mix(in srgb,var(--c0) 40%,var(--card))}.app[data-cor="mais"] .ln.k1{fill:color-mix(in srgb,var(--c1) 40%,var(--card))}
+.app[data-cor="mais"] .ln.k2{fill:color-mix(in srgb,var(--c2) 40%,var(--card))}.app[data-cor="mais"] .ln.k3{fill:color-mix(in srgb,var(--c3) 40%,var(--card))}
+.app[data-cor="mais"] .ln.k4{fill:color-mix(in srgb,var(--c4) 40%,var(--card))}.app[data-cor="mais"] .ln.k5{fill:color-mix(in srgb,var(--c5) 40%,var(--card))}
+.app[data-cor="mais"] .cartao.pn{border-top:4px solid var(--accent)}
+.lbt{font-weight:var(--pes)}
+.ed{fill:none;stroke:var(--txt);stroke-width:1.2}.mf{fill:none;stroke:var(--txt);stroke-width:1.1;stroke-dasharray:5 3}
+.edl{font-size:10px;font-weight:var(--pes);fill:var(--sel)}
+.nd{cursor:pointer}.sh,.shx{fill:var(--card);stroke:var(--txt);stroke-width:1.2}
+.nd.done .sh{fill:var(--feito-bg);stroke:var(--out)}.nd.wait .sh{fill:var(--alerta-bg);stroke:var(--alerta-txt)}
+.nd.cur .sh{fill:var(--vez-bg);stroke:var(--accent);stroke-width:2.6}
+.nd.skip{opacity:.32}.nd.sel .sh{stroke:var(--sel);stroke-width:3}
+.nd text{font-weight:var(--pes)}.mk{fill:none;stroke:var(--txt);stroke-width:1.6}.mk1{fill:none;stroke:var(--txt);stroke-width:1}
+.ev{fill:var(--card);stroke:var(--txt);stroke-width:1.4}.ev.end{stroke-width:3.6}
+.dob{fill:var(--card);stroke:var(--muted);stroke-width:1}.dob.on{fill:var(--accent);stroke:var(--accent)}
+.ck{fill:var(--out)}.wt{fill:var(--alerta-txt)}.bw{fill:none;stroke:#fff;stroke-width:1.6}
+@media (max-width:520px){
+  .app,.app.wide{height:auto;min-height:480px}.rol,.mapa{overflow:visible}
+  .bar{flex-wrap:wrap;padding-top:4px}.abas{order:3;width:100%;flex-wrap:wrap}
+  .ctx{flex-wrap:wrap}.ps{grid-template-columns:70px 22px minmax(0,1fr)}
+  .mfa{grid-template-columns:1fr}dl{grid-template-columns:1fr}
+}
+/* v12: meia tela como a alternativa C, tela larga como a alternativa B */
+.trilho{gap:4px}
+.trilho button{height:28px;min-width:30px;border:1px solid var(--line);border-radius:7px;background:var(--card)}
+.trilho .done{background:var(--feito-bg);border-color:var(--out)}.trilho .wait{background:var(--alerta-bg);border-color:var(--alerta-txt)}.trilho .cur{background:var(--vez-bg);border-color:var(--accent)}
+.trilho .ab{flex:1;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 6px 0 10px;background:var(--accent);border:1px solid var(--accent);color:var(--sobre);font-weight:var(--pes)}
+.trilho .ab>span:first-child{overflow:hidden;text-overflow:ellipsis}
+.ct{background:rgba(255,255,255,.26);border-radius:999px;padding:0 8px;font-size:11px;font-weight:400}
+.ps{align-items:center;grid-template-columns:62px 24px minmax(0,1fr)}
+.ps .setor{margin-top:0;align-self:start;margin-top:9px}
+.mc{margin-top:8px;align-self:start}.mc.gw{margin-top:11px}
+.esp{align-items:flex-start}
+.fluxo>.ps:first-child .esp::before{top:10px}.fluxo>.ps:last-child .esp::before{bottom:auto;height:10px}
+.tc{margin:3px 0;border-radius:8px}
+.tc.sel{box-shadow:none;border:2px solid var(--accent);border-left-width:5px}
+.tc.gwc:not(.sel){border-style:dashed;border-left-style:solid;background:var(--bg)}
+.cab{padding:6px 9px;gap:8px}
+.dc{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:400;color:var(--muted);white-space:nowrap}
+.docic{opacity:.45}.docic.on{opacity:1}
+.rm{font-size:11px;font-weight:400;border:1px solid var(--line);border-radius:6px;padding:0 7px;background:var(--card);white-space:nowrap}
+.cab .st{font-weight:400}
+.corp{padding:6px 10px 9px;gap:6px}
+.acoes{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.acoes button:not(.mini),.acoes input{padding:4px 12px;border-radius:7px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-weight:var(--pes);font-size:.9rem}
+.acoes input{flex:1 1 120px;min-width:100px;max-width:220px;background:var(--card);color:var(--txt);border-color:var(--line);font-weight:400}
+.acoes .mini{padding:3px 10px;font-size:.86rem}
+.caixa{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;display:flex;flex-direction:column;gap:3px}
+.app.wide{height:auto;max-height:none}
+.corpo.duo{grid-template-rows:auto;align-items:start}
+.pn{gap:7px}
+.mfa{grid-template-columns:150px minmax(0,1fr) auto}
+.mapa{gap:4px}.cartao>.mapa{overflow:visible}
+@media (max-width:520px){.mfa{grid-template-columns:1fr auto}.mfa .seq{grid-column:1/-1}.ps{grid-template-columns:56px 22px minmax(0,1fr)}}
+.sc{flex:none;display:block}.sc svg{margin:0 auto}
+.fluxo{flex:none}
+@media (max-width:1000px){.corpo.duo{grid-template-columns:minmax(0,1fr)}}
+
+/* na ferramenta a janela é o próprio aplicativo: ocupa tudo, sem moldura */
+html,body{height:100%}
+body{padding:0;background:#fff}
+.app,.app.wide{width:100%;max-width:none;height:100vh;margin:0;border:0;border-radius:0;box-shadow:none}
+.app.wide{height:auto;min-height:100vh}
+.ctx select{font-size:.8rem;padding:0 4px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--muted)}
+.abas button:disabled{opacity:.4;cursor:default}
+.abas button{padding-left:6px;padding-right:6px;font-size:.84rem}
+.expf{display:flex;flex-direction:column;gap:5px;padding:7px 0;border-top:1px solid var(--line)}
+.expf h3{margin:0;font-size:1rem;font-weight:var(--pes)}
+.expf .sc{overflow-x:auto;display:block}.expf .sc svg{min-width:520px}
+.expp{border-left:4px solid var(--line);padding:2px 0 2px 8px;display:flex;flex-direction:column;gap:2px}
+a.bt{text-decoration:none;display:inline-block;padding:3px 12px;border-radius:7px;background:var(--accent);color:var(--sobre);font-weight:var(--pes);font-size:.9rem;border:1px solid var(--accent)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <marker id="a1" viewBox="0 0 8 8" refX="7.4" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="mkf" d="M0,0L8,4L0,8z"/></marker>
+  <marker id="a2" viewBox="0 0 9 9" refX="8" refY="4.5" markerWidth="8" markerHeight="8" orient="auto"><path class="mko" d="M1,1L8,4.5L1,8z"/></marker>
+  <marker id="a3" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="6" markerHeight="6"><circle class="mko" cx="4" cy="4" r="2.6"/></marker>
+</defs></svg>
+<div class="app" id="app">
+  <div class="bar"><b tabindex="0" data-tip="Programa de Descentralização Progressiva de Ações de Saúde. Dinheiro repassado à região para compras e serviços pequenos e urgentes, sem licitação, dentro de um teto por item.">PDPAS</b>
+    <div class="abas" role="tablist" id="vtabs">
+    <button role="tab" data-v="pedidos" data-tip="Todos os pedidos já gerados e o botão para começar um novo.">Pedidos</button>
+    <button role="tab" data-v="pedido" data-tip="O caminho deste pedido, fase por fase.">Pedido</button>
+    <button role="tab" data-v="inteiro" data-tip="As nove fases e todos os passos numa tela só.">Processo</button>
+    <button role="tab" data-v="comparar" data-tip="O que muda entre permanente, consumo e serviço.">Comparar</button>
+    <button role="tab" data-v="docs" data-tip="Todas as minutas do pedido e onde estão guardadas.">Documentos</button>
+    <button role="tab" data-v="hist" data-tip="Tudo o que foi registrado neste pedido, em ordem.">Histórico</button>
+    <button role="tab" data-v="exp" data-tip="Cada fase e cada passo do processo, com o fluxograma em raias, quem faz, prazos e base.">Explicação</button></div><span class="sp"></span>
+    <button id="bLeg" aria-label="Como ler o desenho" data-tip="Como ler o desenho: explica cada símbolo em linguagem simples.">?</button>
+    <button id="bWide" data-tip="Alterna entre a janela de meia tela e a janela larga, com o fluxograma em raias.">Ampliar</button></div>
+  <div class="ctx"><span class="id" id="ctxid"></span><span class="res" id="res"></span>
+    <select id="estilo" aria-label="Estilo da janela" data-tip="Aparência da janela. O conteúdo é o mesmo."><option value="pastel-suave">Pastel</option><option value="pastel-mais">Pastel com mais cor</option><option value="serio-suave">Sério</option><option value="serio-mais">Sério com mais cor</option></select></div>
+  <div class="corpo" id="corpo"></div>
+</div>
+<div id="tip" hidden></div>
+<script>
+/* ---------- organograma (Decreto 39.546/2018, regimento da SES-DF; Portaria SES 473/2023) ---------- */
+const ORG={
+ GSAPS:["Gerência de Serviços de Atenção Primária à Saúde","DIRAPS","Gere as UBS do seu território. Identifica e pede à região o que falta de material, equipamento e infraestrutura, e controla os bens das unidades.","Regimento, art. 334"],
+ DIRAPS:["Diretoria Regional de Atenção Primária à Saúde","Superintendência da Região Norte","Dirige a atenção primária da região e define de quais materiais, insumos e equipamentos os serviços precisam. No PDPAS, é a diretoria que abre o processo de compra da atenção primária.","Regimento, art. 325; Manual do PDPAS"],
+ GAPAPS:["Gerência de Áreas Programáticas de Atenção Primária à Saúde","DIRAPS","Planeja, acompanha e avalia as políticas e linhas de cuidado da atenção primária.","Regimento, art. 331"],
+ SRSNO:["Superintendência da Região de Saúde Norte","Secretário de Saúde","Gere as ações de saúde de Fercal, Planaltina, Sobradinho e Sobradinho II e os recursos financeiros da região. É a unidade que executa o PDPAS.","Regimento, art. 261"],
+ DA:["Diretoria Administrativa","Superintendência da Região Norte","Cuida de orçamento, finanças, pessoas, apoio operacional e contratações da região. O Diretor Administrativo é o ordenador de despesa: aprova o TR, autoriza, adjudica e homologa.","Regimento, art. 265; Manual do PDPAS"],
+ GEOF:["Gerência de Orçamento e Finanças","Diretoria Administrativa","Controla o dinheiro transferido pelo Fundo de Saúde, executa as contratações e monta a prestação de contas. No PDPAS, confere os documentos, faz a cotação e instrui a dispensa de licitação.","Regimento, art. 266"],
+ NPDOC:["Núcleo de Patrimônio e Documentação Administrativa","Gerência de Apoio Operacional (Diretoria Administrativa)","Recebe, tomba, movimenta e dá baixa em bens patrimoniais. No PDPAS, recebe o bem e a nota fiscal.","Regimento, art. 281"],
+ NUAL:["Núcleo de Almoxarifado","Gerência de Apoio Operacional (Diretoria Administrativa)","Recebe, guarda, controla o estoque e distribui os materiais de consumo.","Regimento, art. 279"],
+ NLF:["Núcleo de Logística Farmacêutica","Gerência de Apoio Operacional da atenção primária","Planeja, armazena e distribui medicamentos e produtos para saúde nas UBS.","Regimento, art. 277"],
+ NECFM:["Núcleo de Engenharia Clínica e Física Médica","Gerência de Apoio Operacional da atenção especializada","Controla a manutenção dos equipamentos médicos. Pelo regimento, só existe nos hospitais, não na atenção primária.","Regimento, art. 278"],
+ SINFRA:["Subsecretaria de Infraestrutura em Saúde","Secretário de Saúde","Obras, manutenção dos prédios e manutenção dos equipamentos médicos de toda a Secretaria.","Regimento, art. 249"],
+ GEMED:["Gerência de Equipamentos Médicos","Diretoria de Engenharia Clínica (SINFRA)","Elabora pareceres e laudos técnicos sobre compra, recebimento e instalação de equipamentos médicos.","Regimento, art. 259"],
+ SUAG:["Subsecretaria de Administração Geral","Secretário de Saúde","Área da Administração Central que analisa a prestação de contas do PDPAS.","Portaria 473, art. 7º, IV"],
+ FSDF:["Fundo de Saúde do Distrito Federal","Secretário de Saúde","Libera o dinheiro do PDPAS para a região, desde que as contas anteriores tenham sido prestadas.","Regimento, art. 37; Decreto 44.322, art. 9º"],
+ UBS:["Unidade Básica de Saúde","GSAPS","A unidade de atenção primária, onde o item comprado será usado.",""],
+ TR:["Termo de Referência","","O documento que descreve o que comprar, quanto, por quê e em que condições.",""],
+ SEI:["Sistema Eletrônico de Informações","","Onde o processo tramita e os documentos são assinados.",""],
+ PDPAS:["Programa de Descentralização Progressiva de Ações de Saúde","","Dinheiro repassado à região para compras e serviços pequenos e urgentes, sem licitação, dentro de um teto por item.","Decreto 44.322/2023"],
+ SisGepat:["Sistema Geral de Patrimônio","","Onde cada bem permanente é registrado com seu número de patrimônio.",""],
+ PNCP:["Portal Nacional de Contratações Públicas","","Site federal onde toda contratação pública é divulgada.",""],
+ DODF:["Diário Oficial do Distrito Federal","","",""],
+ SES:["Secretaria de Estado de Saúde do Distrito Federal","","",""],
+ GDF:["Governo do Distrito Federal","","",""],
+ APS:["Atenção Primária à Saúde","","",""],
+ FGTS:["Fundo de Garantia do Tempo de Serviço","","A empresa precisa estar em dia com ele para contratar com o governo.",""],
+ BPMN:["Business Process Model and Notation","","Norma internacional para desenhar processos.",""],
+ PDF:["Formato de arquivo de documento","","",""]
+};
+const tipOrg=k=>{const o=ORG[k];return o[0]+(o[2]?". "+o[2]:"")};
+const reSig=new RegExp("\\b("+Object.keys(ORG).join("|")+")(?=s?\\b)","g");
+const sg=t=>[...new Set(String(t).match(reSig)||[])].map(k=>" "+k+": "+ORG[k][0]+".").join("");
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
+const ab=s=>esc(s).replace(reSig,m=>`<abbr tabindex="0" data-tip="${esc(tipOrg(m))}">${m}</abbr>`);
+
+/* ---------- raias, fases, passos ---------- */
+const LN=[["GSAPS","de origem"],["DIRAPS"],["SRSNO"],["Diretor","Administr."],["GEOF"],["NPDOC"]];
+const LO=["GSAPS","DIRAPS","SRSNO","DA","GEOF","NPDOC"];
+const laneOrg=l=>l===5&&S.tipo==="c"?"NUAL":LO[l];
+const laneTxt=l=>l===5&&S.tipo==="c"?["NUAL"]:LN[l];
+const laneNome=l=>["GSAPS de origem","DIRAPS","Superintendência","Diretor Administrativo","GEOF"][l]||laneOrg(5);
+const PX={central:"Administração Central da SES",emp:"Empresa fornecedora"};
+const TIPO={p:"Material permanente",c:"Material de consumo",s:"Serviço"};
+const F=[
+ ["Demanda","Descobrir quanto a região inteira precisa do item, para sair um processo só.","Necessidade de uma gerência","Consolidado da região","Gerência que não responde em 7 dias úteis entra no consolidado como sem manifestação."],
+ ["Instrução","Juntar o que prova que a compra é necessária e permitida.","Consolidado","TR assinado e declarações","Estoque disponível impede a compra. Ata vigente exige justificativa."],
+ ["Parecer central","Uma área técnica central confirma o item e a descrição. Só em material permanente.","Processo instruído","Parecer favorável","Já voltou por total do TR diferente da grade e por quantidade sem explicação."],
+ ["Autorização","O ordenador de despesa confirma o pedido, o dinheiro e autoriza comprar.","TR (e parecer, se permanente)","Aprovação e autorização",""],
+ ["Cotação","Achar o preço justo com ao menos 3 preços válidos.","Autorização","Mapa comparativo","Sem propostas, a GEOF repete a convocação até três vezes."],
+ ["Escolha do fornecedor","Escolher a empresa que atende ao TR pelo melhor preço.","Mapa e propostas","Parecer e certidões","Vencedora que não é a de menor preço pede justificativa."],
+ ["Contratação","Formalizar: confirmar a vencedora, emitir a Ordem e publicar.","Parecer e certidões","Ordem enviada e compra publicada","A GEOF fixa datas-limite no fim do ano; as de 2026 ainda não saíram."],
+ ["Recebimento e atesto","Conferir o que chegou e atestar, para liberar o pagamento.","Item e Nota Fiscal","Nota Fiscal atestada","Nota Fiscal parada gera juros, que o PDPAS não pode pagar."],
+ ["Pagamento e contas","Pagar a empresa e prestar contas. Sem contas, o repasse é suspenso.","Nota Fiscal atestada","Pagamento e prestação de contas",""]
+];
+const N=[
+ {id:"t1",f:0,l:0,tp:"pcs",k:"peca",t:"Escrever o memorando de intenção",doc:"Memorando de intenção",
+  e:"A gerência que percebeu a necessidade abre um processo público no SEI e escreve à Diretoria: qual item do catálogo da SES, por que precisa e quanto.",
+  pd:"À DIRAPS: repassar a todas as gerências da região e devolver o consolidado.",vt:"O despacho da DIRAPS às gerências e, depois, o consolidado.",pz:"As gerências têm 7 dias úteis para responder.",dv:"Aguardar o consolidado para montar o TR.",bn:"Rotina DIRAPS Norte (17/11/2026); Manual do PDPAS, atividade 1"},
+ {id:"t2",f:0,l:1,tp:"pcs",k:"peca",t:"Despachar a todas as gerências",doc:"Despacho às gerências",
+  e:"A Diretoria repassa o pedido a todas as gerências da região, para cada uma dizer se também precisa do item e quanto.",
+  pd:"Às gerências: dizer se têm interesse e a quantidade.",vt:"A manifestação de cada gerência.",pz:"7 dias úteis, com a data-limite escrita no despacho. A ferramenta calcula a data com os feriados.",dv:"A assessoria da DIRAPS anota na planilha de acompanhamento o nº do processo e o item.",bn:"Memorando Circular 2/2024 SRSNO, item 1; Rotina DIRAPS Norte (17/11/2026)"},
+ {id:"tm",f:0,l:1,tp:"pcs",kind:"timer",k:"espera",t:"7 dias úteis",e:"O processo fica parado enquanto as gerências respondem. Não há o que fazer além de esperar a data-limite.",bn:"Rotina DIRAPS Norte (17/11/2026)"},
+ {id:"t3",f:0,l:1,tp:"pcs",k:"peca",t:"Consolidar o interesse e devolver",doc:"Despacho com o consolidado",
+  e:"Terminado o prazo, a Diretoria soma os pedidos, lista quem não respondeu e devolve o consolidado à gerência de origem.",
+  pd:"À gerência de origem: montar o TR com o consolidado, em processo público e relacionado ao do memorando.",vt:"Tabela por gerência, com quantidade e total.",pz:"Logo depois do fim dos 7 dias úteis.",ob:"Quem não respondeu aparece listado, conforme a planilha de acompanhamento.",dv:"Usar o consolidado como quantidade do TR. A ferramenta confere se a soma bate.",bn:"Memorando Circular 2/2024 SRSNO, item 1; Rotina DIRAPS Norte (17/11/2026)"},
+ {id:"t4",f:1,l:0,tp:"pcs",k:"peca",t:"Montar o Termo de Referência",doc:"Termo de Referência",
+  e:"Quem monta o TR passa a ser o guardião do processo e o acompanha até a entrega. A ferramenta avisa quando o gasto do item no ano se aproxima do teto da dispensa.",
+  pd:"Nada a outro setor neste passo.",vt:"TR pronto para assinatura.",ob:"A ferramenta gera a minuta a partir dos modelos da GEOF.",bn:"Portaria SES 473/2023; Decreto 44.322/2023; Lei 14.133/2021, art. 75"},
+ {id:"t5",f:1,l:1,tp:"pcs",k:"acompanha",t:{p:"Colher as assinaturas dos gestores e da Diretoria",c:"Assinar o TR no bloco da Diretoria",s:"Assinar o TR no bloco da Diretoria"},
+  e:{p:"O TR é assinado pelos gestores de todas as gerências que pediram o item. Depois, a Diretoria revisa pendências e assina.",c:"O TR segue para o bloco de assinatura da Diretoria.",s:"O TR segue para o bloco de assinatura da Diretoria."},
+  pd:"Assinatura em bloco no SEI.",vt:"TR assinado.",dv:"Seguir para o bloco da Superintendência.",bn:"Portaria 473, art. 16, I; Rotina DIRAPS Norte (18/11/2026)"},
+ {id:"t5s",f:1,l:2,tp:"pcs",k:"acompanha",t:"Assinar o TR no bloco da Superintendência",e:"A Superintendência revisa e assina o TR.",pd:"Assinatura em bloco no SEI.",vt:"TR assinado pela Superintendência.",dv:"Com todas as assinaturas, o processo segue para as declarações.",bn:"Portaria 473, art. 16, I; Rotina DIRAPS Norte (18/11/2026)"},
+ {id:"t5b",f:1,l:0,tp:"p",k:"peca",t:"Enviar memorando ao NPDOC e à GEOF",doc:"Memorando ao NPDOC e à GEOF",
+  e:"O guardião avisa os dois setores que darão andamento: o NPDOC, para verificar estoque, ata e compra em curso; a GEOF, para montar o processo e pesquisar preços.",
+  pd:"Ao NPDOC: Nada Consta, declaração de ata e Visão Gerencial. À GEOF: montagem do processo e pesquisa de preços.",vt:"Do NPDOC, os três documentos. Da GEOF, mais adiante, a pesquisa de preços.",bn:"Rotina DIRAPS Norte (18/11/2026)"},
+ {id:"t6",f:1,l:5,tp:"pc",k:"confere",t:"Emitir Nada Consta, ata e Visão Gerencial",doc:"Nada Consta, declaração de ata e Visão Gerencial",
+  e:"O setor que cuida do material consulta o sistema e declara três coisas: se há estoque, se há ata de registro de preços e como está o abastecimento do item.",
+  pd:{p:"Pedido feito no memorando ao NPDOC.",c:null},vt:"Nada Consta com data, declaração de existência ou inexistência de ata e relatório da Visão Gerencial, cada um com nº SEI.",pz:"A norma não fixa prazo. A ferramenta avisa quando a consulta tem mais de 30 dias.",
+  dv:"Arrastar a Visão Gerencial para a ferramenta: ela preenche estoque, ata e compra em andamento. Os números SEI entram no item 2.5 do TR. Se houver estoque, a compra não segue.",bn:"Portaria 473, art. 16, II e III, e art. 21; Manual do PDPAS, atividade 1"},
+ {id:"g",f:1,l:0,tp:"pc",kind:"gw",k:"decide",t:"Há ata vigente?",q:"Há ata de registro de preços vigente para este item?",
+  e:"Ata vigente significa que a Secretaria já tem preço registrado para comprar o item pela via normal. O PDPAS só pode ser usado se houver justificativa forte. A ferramenta lê a resposta na Visão Gerencial e confirma com você.",
+  sim:"Só segue com memorando de justificativa.",nao:"Segue direto para a próxima fase.",bn:"Portaria 473, art. 21, §§ 1º e 2º"},
+ {id:"t7",f:1,l:0,tp:"pc",cond:"g",k:"peca",t:"Justificar a compra com ata vigente",doc:"Memorando de justificativa",
+  e:"Explica por que comprar pelo PDPAS mesmo havendo ata: cita o TR, a declaração e a Visão Gerencial, e mostra a relevância da compra.",bn:"Portaria 473, art. 21, § 2º"},
+ {id:"gs1",f:1,l:0,tp:"s",kind:"gw",k:"decide",t:"É reparo de equipamento?",q:"O serviço é reparo de equipamento?",e:"Reparo de equipamento exige provar qual é o bem e que não existe contrato de manutenção para ele.",sim:"Juntar a ficha de cada equipamento e a declaração.",nao:"Segue.",bn:"Memorando Circular 6/2023 GEOF"},
+ {id:"s1",f:1,l:5,tp:"s",cond:"gs1",k:"acompanha",t:"Juntar ficha SisGepat e declaração de contrato",
+  e:"Para cada equipamento, a ficha do patrimônio no SisGepat. Junto vai a declaração de que não existe contrato de manutenção cobrindo o equipamento.",
+  pd:"Ao NPDOC: a ficha de cada equipamento.",vt:"Fichas e declaração no processo.",av:"O memorando da GEOF atribui a declaração ao NECFM ou ao executor do contrato. Pelo regimento, o NECFM só existe nos hospitais. Falta confirmar quem declara para a atenção primária.",bn:"Memorando Circular 6/2023 GEOF"},
+ {id:"gs2",f:1,l:0,tp:"s",kind:"gw",k:"decide",t:"Altera o prédio?",q:"O serviço altera as características originais do prédio?",e:"Reparo que muda o prédio depende da concordância prévia da área de infraestrutura da Secretaria.",sim:"Obter a anuência da SINFRA.",nao:"Segue direto para a próxima fase.",bn:"Portaria 473, art. 20"},
+ {id:"s3",f:1,l:0,tp:"s",cond:"gs2",k:"acompanha",t:"Obter a anuência da SINFRA",msg:["central","both"],e:"A SINFRA precisa concordar por escrito antes da contratação.",vt:"Anuência prévia da SINFRA.",bn:"Portaria 473, art. 20"},
+ {id:"t8",f:2,l:0,tp:"p",k:"acompanha",t:"Pedir e receber o parecer técnico",msg:["central","both"],
+  e:"Todo material permanente precisa de parecer favorável de uma área técnica da Administração Central antes da cotação. A ferramenta sugere a área pelo código do item (equipamento médico, por exemplo, vai à GEMED).",
+  vt:"Parecer técnico favorável.",ob:"A área provável sai do código do item; confirmar com a GEOF.",dv:"Corrigir o que o parecer apontar antes de seguir.",
+  av:"O Memorando Circular 2/2024 da SRSNO põe o parecer depois do mapa de preços; os pareceres de 2026 vieram antes. Falta confirmar a ordem e quem encaminha o processo à área central.",bn:"Decreto 44.322, art. 3º, parágrafo único; Manual do PDPAS, atividade 2"},
+ {id:"t9",f:3,l:3,tp:"pcs",k:"acompanha",t:"Aprovar o TR, declarar que há recurso e autorizar",
+  e:"O Diretor Administrativo, como ordenador de despesa, faz três atos: aprova o TR por despacho, declara que há dinheiro disponível e autoriza a compra.",
+  vt:"Despacho de aprovação, declaração de disponibilidade financeira e autorização.",bn:"Decreto 44.330, art. 71, § 3º; Portaria 473, art. 16, IV e V"},
+ {id:"t10",f:4,l:4,tp:"pcs",k:"acompanha",t:"Cotar preços e montar o mapa comparativo",msg:["emp","both"],doc:"Pesquisa de preços e mapa comparativo",
+  e:"A GEOF pede cotação às empresas, reúne ao menos 3 preços válidos, calcula a mediana e monta o mapa comparativo.",
+  pd:{p:"Pedido feito no memorando ao NPDOC e à GEOF.",c:null,s:null},vt:"Propostas, registro de quem não respondeu, pesquisa de preços e mapa comparativo.",pz:"As empresas têm 3 dias úteis para responder.",
+  dv:"Avaliar as propostas no passo seguinte.",bn:"Manual do PDPAS, atividades 6 e 7; Decreto 44.330, arts. 90 e 93"},
+ {id:"t11",f:5,l:0,tp:"pcs",k:"peca",t:"Escolher a empresa e dar o parecer",doc:"Parecer com a empresa vencedora",
+  e:{p:"O guardião avalia no mínimo 3 empresas contra os requisitos do TR e indica a de melhor preço que atende. Se não for a de menor preço, justifica.",c:"O demandante compara as propostas com o TR e indica a vencedora. Se não for a de menor preço, justifica.",s:"O demandante compara as propostas com o TR e indica a vencedora. Em reparo de equipamento médico, a GEMED analisa as propostas."},
+  pd:"Entregar o parecer à GEOF.",vt:"A GEOF acerta a entrega com a empresa escolhida.",bn:"Portaria 473, art. 16, VI; Rotina DIRAPS Norte (18/11/2026)"},
+ {id:"t12",f:5,l:4,tp:"pcs",k:"acompanha",t:"Conferir certidões e impedimentos",e:"A GEOF confere se a empresa está em dia com Receita, GDF, Justiça do Trabalho e FGTS, e se não está suspensa ou impedida de contratar.",vt:"Certidões e consulta de impedimentos no processo.",bn:"Manual do PDPAS, atividade 7; Portaria 473, art. 16, IX"},
+ {id:"t13",f:6,l:3,tp:"pcs",k:"acompanha",t:"Adjudicar, homologar e emitir a Ordem",doc:"Termo de Adjudicação e Ordem de Serviço do PDPAS",
+  e:"O Diretor Administrativo confirma a vencedora e emite a Ordem de Serviço do PDPAS, que faz o papel da nota de empenho.",vt:"Termo de Adjudicação e Homologação e a Ordem.",pz:"A GEOF fixa a data-limite de fim de ano por memorando circular; o de 2026 ainda não saiu.",bn:"Manual do PDPAS, atividade 9; Decreto 44.330, art. 233"},
+ {id:"t14",f:6,l:4,tp:"pcs",k:"acompanha",t:"Publicar e enviar a Ordem à empresa",msg:["emp","out"],
+  e:"A compra é publicada e a Ordem vai à empresa por e-mail do SEI. A partir daí corre o prazo de entrega.",vt:"Publicação feita e Ordem enviada.",pz:"Publicação no PNCP e no DODF em até 10 dias úteis. Entrega em até 30 dias do recebimento da Ordem.",bn:"Portaria 473, art. 16, X; Manual do PDPAS, atividade 10"},
+ {id:"t15",f:7,l:5,tp:"pc",k:"acompanha",t:{p:"Receber o bem e a Nota Fiscal",c:"Receber o material e juntar a Nota Fiscal"},msg:["emp","in"],
+  e:{p:"A empresa entrega no NPDOC, que registra o recebimento, junta a Nota Fiscal e emite o Termo de Recebimento Provisório.",c:"O almoxarifado recebe o material e junta a Nota Fiscal ao processo logo em seguida."},
+  vt:"Recebimento registrado e Nota Fiscal no processo.",dv:"Atestar sem demora: Nota Fiscal parada gera juros, e o PDPAS não pode pagar juros.",bn:"Manual do PDPAS, atividade 13; Portaria 473, art. 22, IV; Memorando Circular 1/2025 GEOF"},
+ {id:"t16",f:7,l:0,tp:"pcs",k:"peca",t:{p:"Atestar o recebimento definitivo",c:"Atestar a Nota Fiscal",s:"Atestar a Nota Fiscal após a execução"},doc:"Atesto",
+  e:{p:"O guardião vai ao NPDOC, confere o bem contra o TR e atesta, com fotos e o nome do servidor que ficará responsável por ele.",c:"O demandante atesta a Nota Fiscal com a declaração do PDPAS.",s:"O responsável pelo aceite atesta a Nota Fiscal só depois da execução total do serviço."},
+  dv:"A prestação de contas já reprovou processos por falta de foto do bem e de termo de recebimento definitivo. Isso se resolve neste passo.",bn:"Portaria 473, art. 36, XIII; Memorando Circular 1/2025 GEOF"},
+ {id:"t17",f:7,l:5,tp:"p",k:"acompanha",t:"Distribuir os bens às gerências",e:"O NPDOC distribui os bens conforme o consolidado do memorando de intenção.",bn:"Rotina DIRAPS Norte (18/11/2026)"},
+ {id:"t18",f:8,l:4,tp:"pcs",k:"acompanha",t:"Pagar e prestar contas",msg:["central","out"],
+  e:"A GEOF paga a empresa e inclui a compra na prestação de contas, que segue para a Administração Central (SUAG). O FSDF só libera novo repasse com as contas em dia.",vt:"Comprovante de pagamento.",pz:"Contas bimestrais até o dia 10 e anual até fevereiro.",bn:"Portaria 473, art. 16, VII e VIII, e art. 34, § 1º; Decreto 44.322, art. 11"},
+ {id:"t19",f:8,l:5,tp:"p",k:"acompanha",t:"Tombar o bem no SisGepat",e:"O bem ganha número de patrimônio e é registrado no SisGepat, com Termo de Movimentação e relatório de incorporação.",vt:"Tombamento e Termo de Movimentação.",bn:"Portaria 473, art. 28, § 1º, e art. 36, XIII"}
+];
+N.forEach(n=>n.kind=n.kind||"task");
+const K={peca:"A ferramenta gera a minuta deste passo.",confere:"A ferramenta lê os PDFs e confere os dados.",acompanha:"Passo de outro setor: você registra quando pediu e quando voltou.",decide:"Decisão: a resposta escolhe o caminho.",espera:"Espera: o processo fica parado até o prazo."};
+const by=id=>N.find(n=>n.id===id), v=(x,t)=>x&&typeof x==="object"&&!Array.isArray(x)?x[t]:x;
+const lab=(n,t)=>v(n.t,t||S.tipo);
+
+/* ---------- estado: o pedido vem do programa (Processos\<pedido>), a aparência fica neste computador ---------- */
+const SH={t1:"Memorando de intenção",t2:"Despacho às gerências",tm:"7 dias úteis",t3:"Consolidado",t4:"Montar o TR",t5:"Assinatura da Diretoria",t5s:"Assinatura da SRSNO",t5b:"Memorando NPDOC e GEOF",t6:"Nada Consta, ata e Visão",g:"Ata vigente?",t7:"Justificar a ata",gs1:"É reparo?",s1:"Ficha e declaração",gs2:"Altera o prédio?",s3:"Anuência da SINFRA",t8:"Parecer técnico",t9:"Aprovar e autorizar",t10:"Cotação e mapa",t11:"Parecer da vencedora",t12:"Certidões",t13:"Adjudicar e emitir Ordem",t14:"Publicar e enviar Ordem",t15:"Receber e Nota Fiscal",t16:"Atesto",t17:"Distribuir",t18:"Pagar e prestar contas",t19:"Tombamento"};
+const TP={permanente:"p",consumo:"c",servico:"s"};
+const FN={t1:"1_Memo_intencao",t2:"1b_Despacho_DIRAPS_gerencias",t3:"1c_Despacho_consolidado",t4:"2_Termo_de_Referencia",t5b:"2b_Memo_NPDOC_GEOF",t7:"4_Memorando_ata_vigente",t11:"5_Parecer_apos_mapa",t16:"6_Atesto"};
+const PK={t1:"memo_intencao",t2:"despacho_intencao",t3:"despacho_consolidado",t4:"termo_referencia",t5b:"memo_npdoc_geof",t7:"memorando_ata_vigente",t11:"parecer_demandante",t16:"atesto"};
+let PED=null,LISTA=[],QUEDA=false;
+let S={tipo:"p",view:"pedidos",fase:0,sel:{k:"x"},sub:"",prev:"",wide:false,leg:false,msg:"",bp:false,tema:"pastel",cor:"suave",d:{},ans:{},sei:{},docs:{},arqs:{},h:[]};
+try{const u=JSON.parse(localStorage.getItem("pdpas-ui")||"{}");if(u.tema)S.tema=u.tema;if(u.cor)S.cor=u.cor}catch(e){}
+async function api(rota,corpo){let r;
+  try{r=await fetch(rota,corpo?{method:"POST",headers:{"Content-Type":"application/json","X-Ferramenta":"1"},body:JSON.stringify(corpo)}:undefined)}
+  catch(e){QUEDA=true;throw new Error("Sem resposta do programa: feche esta janela e abra a ferramenta de novo.")}
+  const j=await r.json().catch(()=>({erro:"resposta inválida do programa"}));
+  if(!r.ok)throw new Error(j.erro||"erro");return j}
+let tSalvar=null,ultimoSalvo="";
+function save(){try{localStorage.setItem("pdpas-ui",JSON.stringify({tema:S.tema,cor:S.cor}))}catch(e){}
+  if(!PED)return;const id=PED.id,estado={d:S.d,ans:S.ans,sei:S.sei,h:S.h,fase:S.fase},txt=id+JSON.stringify(estado);
+  if(txt===ultimoSalvo)return;ultimoSalvo=txt;clearTimeout(tSalvar);
+  tSalvar=setTimeout(()=>api("/api/fluxo",{id,estado}).catch(e=>{ultimoSalvo="";S.msg="Não consegui gravar o andamento: "+e.message;render()}),250)}
+function montarDocs(){S.docs={};S.arqs={};
+  for(const a of PED.arquivos){for(const id in FN)if(a.nome.startsWith(FN[id]+"_")){S.docs[id]=a.quando;S.arqs[id]=a.nome}
+    if(a.nome.startsWith("3_Checklist")){S.docs._ck=a.quando;S.arqs._ck=a.nome}}}
+const arq=n=>S.arqs[n.id]||FN[n.id]+".docx";
+const agora=()=>{const d=new Date(),p=x=>String(x).padStart(2,"0");return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`};
+const path=()=>N.filter(n=>n.tp.includes(S.tipo));
+const skip=n=>n.cond&&S.ans[n.cond]==="n";
+const cur=()=>PED?path().find(n=>!skip(n)&&S.d[n.id]!=="d"):undefined;
+function stat(n){if(!PED)return "todo";if(skip(n))return "skip";if(S.d[n.id]==="d")return "done";if(S.d[n.id]==="w")return "wait";const c=cur();return c&&c.id===n.id?"cur":"todo"}
+const STN={done:"Feito",wait:"Aguardando",cur:"É a vez",todo:"A fazer",skip:"Não se aplica"};
+const log=(t,id)=>S.h.push([agora(),t,id]);
+const larga=()=>!!S.wide;
+const fst=f=>{const q=path().filter(n=>n.f===f&&!skip(n)),dn=q.filter(n=>S.d[n.id]==="d").length,c=cur();
+  return {q,dn,s:!q.length?"na":dn===q.length?"done":c&&c.f===f?(S.d[c.id]==="w"?"wait":"cur"):"todo"}};
+const selFase=f=>{S.fase=f;const c=cur();S.sel=c&&c.f===f?{k:"n",id:c.id}:{k:"x"};S.sub=""};
+const REL=`<svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M6,2.5V6.3h3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>`;
+const tipSetor=l=>esc(tipOrg(laneOrg(l)));
+const laneCurto=l=>["GSAPS","DIRAPS","SRSNO","Dir. Adm.","GEOF"][l]||laneOrg(5);
+
+/* ---------- peças de tela ---------- */
+function resumo(){const p=path().filter(n=>!skip(n)),pc=p.filter(n=>n.k==="peca"),w=p.filter(n=>S.d[n.id]==="w");
+  return `<span class="ok" data-tip="Passos já feitos neste pedido.">${p.filter(n=>S.d[n.id]==="d").length}/${p.length} feitos</span>`+(w.length?`<button class="w" data-n="${w[0].id}" data-tip="Passo parado em outro setor. Clique para ir até ele.">${w.length} aguardando</button>`:"")+`<span data-tip="Minutas já geradas, do total que este pedido usa.">${pc.filter(n=>S.docs[n.id]).length}/${pc.length} minutas</span>`}
+function trilho(){let a="";
+  for(let f=0;f<9;f++){const {q,dn,s}=fst(f),na=s==="na",ab_=S.fase===f;
+    const tx=ab_?`<span>${f+1}. ${F[f][0]}</span>${na?"":`<span class="ct">${dn}/${q.length}${s==="wait"?" · aguardando":""}</span>`}`:s==="done"?`${f+1} ✓`:`${f+1}`;
+    a+=`<button class="${s}${ab_?" ab":""}" data-f="${f}" aria-pressed="${ab_}" data-tip="${esc((f+1)+". "+F[f][0]+". "+(na?"Não existe neste tipo de compra.":dn+" de "+q.length+" passos feitos."))}">${tx}</button>`}
+  return `<div class="trilho" role="group" aria-label="As nove fases do processo">${a}</div>`}
+function faseTxt(f){const X=F[f],quem=[...new Set(path().filter(n=>n.f===f).map(n=>laneNome(n.l)))].join(", ");
+  return `<p>${ab(X[1])}</p><p class="nota"><b>Entra</b> ${ab(X[2])} → <b>Sai</b> ${ab(X[3])} · <b>Quem</b> ${ab(quem)}</p>`+(X[4]?`<p class="nota"><b>Atenção</b> ${ab(X[4])}</p>`:"")}
+const fal=`<span class="falta" data-tip="Os documentos da ferramenta não dizem. Preencher com a prática da região.">a definir com você</span>`;
+const dd=(t,x)=>`<dt>${t}</dt><dd>${x?ab(x):fal}</dd>`;
+function partes(n){const s=stat(n),q=laneNome(n.l),pd=v(n.pd,S.tipo),dn=s==="done",w=s==="wait";
+  const li=(ok,tx)=>`<li class="${ok?"ok":""}"><span>${tx}</span></li>`;
+  const seiIn=`<input type="text" id="sei" placeholder="nº SEI" aria-label="Número SEI do documento" data-tip="${esc(tipOrg("SEI"))}">`;
+  const feito=`Feito${S.sei[n.id]?" · "+ab("SEI")+` <span class="num">${esc(S.sei[n.id])}</span>`:""}`,reab=`<button class="lnk" data-a="reabrir" data-tip="Volta o passo para pendente e registra no histórico.">Reabrir</button>`;
+  const x=(n.av?`<div class="aviso">${ab(n.av)}</div>`:"")+(S.msg?`<p class="nota" role="status">${S.msg}</p>`:"");
+  if(s==="skip")return {l:`<div class="aviso">Este passo não se aplica: a resposta à decisão anterior foi “não”.</div>`,a:"",x:""};
+  if(n.kind==="gw")return {l:`<div class="ramo"><button class="pri" data-a="sim">Sim</button><span>${ab(n.sim)}</span></div><div class="ramo"><button class="pri" data-a="nao">Não</button><span>${ab(n.nao)}</span></div>`+(S.ans[n.id]?`<p class="nota">Resposta registrada: ${S.ans[n.id]==="s"?"sim":"não"}.</p>`:""),a:"",x};
+  if(n.kind==="timer")return {l:`<ol class="passos">${li(dn,"<b>Esperar</b> a data-limite escrita no despacho")}</ol>`,a:dn?reab:`<button class="pri" data-a="feito">O prazo terminou</button>`,x};
+  if(n.k==="peca"){const d=S.docs[n.id];
+    return {l:`<ol class="passos">`+li(!!d,d?`<b>Minuta gerada</b>: ${arq(n)} <span class="nota num">${d}</span>`:`<b>Gerar</b> a minuta: ${ab(n.doc)}`)+li(dn,`<b>Incluir no ${ab("SEI")}</b>: revisar no Word, incluir no processo e assinar`)+li(dn,dn?feito:`<b>Concluir</b>: anotar o número do documento`)+`</ol>`,
+      a:(d?`<button data-a="abrir">Baixar uma nova cópia (Word)</button><button class="lnk" data-a="minuta">Gerar de novo</button>`:`<button class="pri" data-a="minuta">Gerar a minuta</button>`)+(dn?reab:seiIn+`<button class="${d?"pri":""}" data-a="feito">Marcar como feito</button>`),
+      x:x+(n.dv?`<p class="nota"><b>Depois</b>: ${ab(n.dv)}</p>`:"")}}
+  const h=S.h.filter(y=>y[2]===n.id&&/^Pedido/.test(y[1])).pop();
+  return {l:`<ol class="passos">`+li(w||dn,`<b>Pedir</b> (${ab(q)}): ${pd?ab(pd):fal}`+(w&&h?` <span class="nota num">· ${h[0].slice(0,5)}</span>`:""))+li(dn,`<b>Esperar</b>: ${n.vt?ab(n.vt):fal}`+(n.pz?` <span class="nota">Prazo: ${ab(n.pz)}</span>`:""))+li(dn,dn?feito:`<b>Ao voltar</b>: ${n.dv?ab(n.dv):"registrar a devolutiva"}`)+`</ol>`,
+    a:dn?reab:w?seiIn+`<button class="pri" data-a="feito">Registrar devolutiva</button>`:`<button class="pri" data-a="pedi" data-tip="Registra a data do pedido. O passo fica como aguardando.">Registrar que pedi</button>`+seiIn+`<button data-a="feito">Registrar devolutiva</button>`,x}}
+function detEss(n){const o=ORG[laneOrg(n.l)];
+  return `<dl><dt>Quem faz</dt><dd>${ab(laneOrg(n.l))}: ${o[0]}</dd>${n.kind==="task"?dd("O que volta",n.vt)+dd("Prazo",n.pz):""}${dd("Base",n.bn)}</dl>`}
+function detFull(n){const o=ORG[laneOrg(n.l)],ext=n.k==="acompanha"||n.k==="confere";
+  return `<p>${ab(v(n.e,S.tipo))}</p><dl>`+(ext?dd("O que pedir",v(n.pd,S.tipo))+dd("O que volta",n.vt)+dd("Prazo",n.pz)+dd("Como obter ou cobrar",n.ob)+dd("Ao voltar",n.dv):n.doc?dd("Documento",n.doc):"")
+    +`<dt>Quem faz</dt><dd>${ab(laneOrg(n.l))}: ${o[0]}. ${ab(o[2])} <span class="nota">${o[3]}</span></dd>`+(n.msg?`<dt>Fala com</dt><dd>${ab(PX[n.msg[0]])}, fora da Região de Saúde Norte.</dd>`:"")+dd("Base",n.bn)+`</dl>`}
+function hist(id){const h=S.h.filter(x=>!id||x[2]===id).slice().reverse();
+  return h.length?`<ul class="hist">${h.map(x=>`<li><time>${x[0]}</time><span>${id?"":`<b>${by(x[2])?ab(lab(by(x[2]))):"Pedido"}:</b> `}${ab(x[1])}</span></li>`).join("")}</ul>`:`<p class="nota">Nada registrado ainda.</p>`}
+const tg=(a,b)=>`<button class="mini" data-sb="det" aria-pressed="${S.sub==="det"}">${a}</button><button class="mini" data-sb="h" aria-pressed="${S.sub==="h"}">${b}</button>`;
+const extra=n=>S.sub==="det"?detFull(n):S.sub==="h"?hist(n.id):"";
+
+/* ---------- aba Pedido, meia tela: fluxo vertical ---------- */
+function marca(n,s,i){if(n.kind==="gw")return `<span class="mc gw ${s}"><span>×</span></span>`;
+  if(n.kind==="timer")return `<span class="mc tm ${s}">${REL}</span>`;
+  return `<span class="mc ${s}">${s==="done"?"✓":s==="wait"?REL:i}</span>`}
+function dica(n,s){if(n.k==="peca")return S.docs[n.id]?"Minuta gerada"+(S.sei[n.id]?" · SEI …"+S.sei[n.id].split("/")[0].slice(-3):""):"gera minuta";return n.k==="confere"?"lê PDF":""}
+function ramos(n){const p=path(),i=p.indexOf(n),B=p[i+1],C=p[i+2];
+  return `<span class="rm">Sim: ${esc(B?SH[B.id]:"segue")}</span><span class="rm">Não: ${esc(!C?"fim":C.f===n.f?SH[C.id]:"Fase "+(C.f+1))}</span>`}
+function fluxo(f){const q=path().filter(n=>n.f===f);if(!q.length)return `<div class="aviso">Esta fase não existe em ${TIPO[S.tipo].toLowerCase()}.</div>`;
+  let a="",i=0;
+  for(const n of q){const s=stat(n),sel=S.sel.k==="n"&&S.sel.id===n.id,gw=n.kind==="gw",h=dica(n,s);if(n.kind==="task")i++;
+    const dir=gw&&!sel?ramos(n):(h&&(s==="done"||s==="todo")?`<span class="dc">${n.k==="peca"?`<span class="docic${S.docs[n.id]?" on":""}"></span>`:""}${h}</span>`:`<span class="st ${s}">${STN[s]}</span>`);
+    a+=`<div class="ps"><span class="setor b${n.l}" tabindex="0" data-tip="${esc(laneNome(n.l)+": ")+tipSetor(n.l)}">${laneCurto(n.l)}</span><span class="esp">${marca(n,s,i)}</span>`
+      +`<div class="tc ${s}${sel?" sel":""}${gw?" gwc":""}" style="border-left-color:var(--s${n.l})"><button class="cab" data-n="${n.id}" aria-expanded="${sel}"><span>${gw?"◇ ":n.kind==="task"?i+". ":""}${ab(gw?n.q:lab(n))}${n.cond?` <small class="nota">se sim</small>`:""}</span>${dir}</button>`;
+    if(sel){const P=partes(n);a+=`<div class="corp">${P.l}<div class="acoes">${P.a}${tg("Detalhes","Histórico")}</div>${P.x}${extra(n)}</div>`}
+    a+=`</div></div>`}
+  return `<div class="fluxo">${a}</div>`}
+function pedidoEstreito(){const f=S.fase;
+  return trilho()+`<div class="cartao cresce rol"><div class="fh"><h2>Fase ${f+1}: ${F[f][0]}</h2><button class="mini" data-a="fase" aria-pressed="${S.sel.k==="f"}" data-tip="Para que serve esta fase, o que entra, o que sai e onde costuma travar.">Entenda a fase</button><button class="mini" data-a="bpmn" aria-pressed="${!!S.bp}" data-tip="Mostra ou recolhe o fluxograma com raias desta fase.">${S.bp?"Recolher o fluxograma":"Ver fluxograma BPMN"}</button></div>`
+    +(S.sel.k==="f"?`<div class="caixa">${faseTxt(f)}</div>`:"")+(S.bp&&path().some(n=>n.f===f)?`<div class="sc">${diagram(path().filter(n=>n.f===f))}</div>`:"")+fluxo(f)+`</div>`}
+
+/* ---------- aba Pedido, tela larga: BPMN horizontal + painel ---------- */
+function wrap(s,m){const o=[];let c="";for(const x of s.split(" ")){if(c&&(c+" "+x).length>m){o.push(c);c=x}else c=c?c+" "+x:x}o.push(c);return o}
+function tx(lines,cx,cy,fs,cls){const lh=fs+1.5,y0=cy-(lines.length-1)*lh/2+fs*.35;return `<text class="${cls||""}" text-anchor="middle" font-size="${fs}">`+lines.map((l,i)=>`<tspan x="${cx}" y="${y0+i*lh}">${esc(l)}</tspan>`).join("")+"</text>"}
+const WD={task:96,gw:30,start:16,end:18,timer:24},TH=38,LH=70,GAP=18,PW=15,LW=72;
+function diagram(ns){
+  const seq=[{id:"_s",kind:"start",l:ns[0].l},...ns,{id:"_e",kind:"end",l:ns[ns.length-1].l}];
+  const lanes=[...new Set(ns.map(n=>n.l))].sort(),pools=[...new Set(ns.filter(n=>n.msg).map(n=>n.msg[0]))],P=new Map();let x=PW+LW+12,W=0;
+  for(const n of seq){const w=WD[n.kind];P.set(n.id,{x,w,r:x+w,cx:x+w/2,cy:lanes.indexOf(n.l)*LH+LH/2});W=x+w+10;x+=w+(n.kind==="gw"?36:GAP)}
+  const HL=lanes.length*LH,py=k=>HL+7+pools.indexOf(k)*26,H=HL+(pools.length?7+pools.length*26:0),g=GAP/2,r=15;let a="";
+  a+=`<rect class="pool" x="0" y="0" width="${W}" height="${HL}"/><text class="lbt" font-size="9" text-anchor="middle" transform="translate(${PW/2+3},${HL/2}) rotate(-90)">${HL>130?"Região de Saúde Norte":"Região Norte"}</text>`;
+  lanes.forEach((l,i)=>{const y=i*LH;a+=`<rect class="ln k${l}" x="${PW}" y="${y}" width="${W-PW}" height="${LH}"/><g data-tip="${tipSetor(l)}" tabindex="0"><rect class="lb c${l}" x="${PW}" y="${y}" width="${LW}" height="${LH}"/><rect class="s${l}" x="${PW}" y="${y}" width="4" height="${LH}"/>${tx(laneTxt(l),PW+LW/2+2,y+LH/2,10.5,"lbt")}</g>`});
+  pools.forEach(k=>{a+=`<g tabindex="0" data-tip="${esc(k==="central"?"Áreas técnicas e de controle da Secretaria, fora da região."+sg("SES SUAG SINFRA GEMED"):"A empresa que vende o item ou presta o serviço.")}"><rect class="poolx" x="0" y="${py(k)}" width="${W}" height="20"/><text class="lbt" font-size="10" x="8" y="${py(k)+14}">${PX[k]}</text></g>`});
+  const E=d=>`<path class="ed" d="${d}" marker-end="url(#a1)"/>`;
+  for(let i=0;i<seq.length-1;i++){const A=seq[i],B=seq[i+1],pa=P.get(A.id),pb=P.get(B.id);
+    if(A.kind==="gw"){const pc=P.get(seq[i+2].id);
+      if(pb.cy===pa.cy){const yb=pa.cy+TH/2+12;a+=E(`M${pa.r},${pa.cy} H${pb.x}`)+E(`M${pa.cx},${pa.cy+r} V${yb} H${pc.x-g} V${pc.cy} H${pc.x}`)+`<text class="edl" x="${pa.r+5}" y="${pa.cy-4}">Sim</text><text class="edl" x="${pa.cx+5}" y="${pa.cy+r+9}">Não</text>`}
+      else{const up=pb.cy<pa.cy;a+=E(`M${pa.cx},${pa.cy+(up?-r:r)} V${pb.cy} H${pb.x}`)+E(`M${pa.r},${pa.cy} H${pc.x-g} V${pc.cy} H${pc.x}`)+`<text class="edl" x="${pa.cx+5}" y="${pa.cy+(up?-r-3:r+10)}">Sim</text><text class="edl" x="${pa.r+5}" y="${pa.cy-4}">Não</text>`}}
+    else a+=E(`M${pa.r},${pa.cy} H${pa.r+g} V${pb.cy} H${pb.x}`)}
+  for(let i=0;i<seq.length;i++){const n=seq[i],p=P.get(n.id);
+    if(n.kind==="start"){a+=`<circle class="ev" cx="${p.cx}" cy="${p.cy}" r="7" data-tip="Início desta fase."/>`;continue}
+    if(n.kind==="end"){a+=`<circle class="ev end" cx="${p.cx}" cy="${p.cy}" r="7" data-tip="Fim desta fase."/>`;continue}
+    const s=stat(n),sel=S.sel.k==="n"&&S.sel.id===n.id,tip=esc(lab(n)+". "+STN[s]+". Quem faz: "+laneNome(n.l)+"."+sg(lab(n)+" "+SH[n.id]+" "+laneOrg(n.l)));
+    a+=`<g class="nd ${s}${sel?" sel":""}" data-n="${n.id}" data-tip="${tip}" tabindex="0" role="button" aria-label="${tip}">`;
+    if(n.kind==="gw"){const sobe=P.get(seq[i+1].id).cy<p.cy;a+=`<polygon class="sh" points="${p.cx},${p.cy-r} ${p.cx+r},${p.cy} ${p.cx},${p.cy+r} ${p.cx-r},${p.cy}"/><path class="mk" d="M${p.cx-4},${p.cy-4}l8,8M${p.cx+4},${p.cy-4}l-8,8"/>`+tx([SH[n.id]],p.cx,sobe?p.cy+r+10:p.cy-r-7,10)}
+    else if(n.kind==="timer")a+=`<circle class="sh" cx="${p.cx}" cy="${p.cy}" r="12"/><circle cx="${p.cx}" cy="${p.cy}" r="9.5" class="mk1"/><path class="mk" stroke-width="1.2" d="M${p.cx},${p.cy-6}V${p.cy}h4"/>`+tx([SH[n.id]],p.cx,p.cy+22,10);
+    else{const y=p.cy-TH/2;a+=`<rect class="sh" x="${p.x}" y="${y}" width="${p.w}" height="${TH}" rx="7"/><rect class="s${n.l}" x="${p.x+1.5}" y="${y+4}" width="4" height="${TH-8}" rx="2"/>`+tx(wrap(SH[n.id],13),p.cx+3,p.cy,10.5);
+      if(n.doc)a+=`<path class="dob ${S.docs[n.id]?"on":""}" d="M${p.r-13},${y+TH-4}h6l3,3v9h-9z"/>`;
+      if(n.msg){const yp=py(n.msg[0]),yt=y+TH,d=n.msg[1];
+        if(d!=="in")a+=`<path class="mf" d="M${p.cx-(d==="both"?6:0)},${yt} V${yp}" marker-start="url(#a3)" marker-end="url(#a2)"/>`;
+        if(d!=="out")a+=`<path class="mf" d="M${p.cx+(d==="both"?6:0)},${yp} V${yt}" marker-start="url(#a3)" marker-end="url(#a2)"/>`}}
+    const bx=n.kind==="task"?p.r-2:p.cx+11,byy=n.kind==="task"?p.cy-TH/2+2:p.cy-11;
+    if(s==="done")a+=`<circle class="ck" cx="${bx}" cy="${byy}" r="6"/><path class="bw" d="M${bx-3},${byy}l2.2,2.4l3.8,-4.6"/>`;
+    if(s==="wait")a+=`<circle class="wt" cx="${bx}" cy="${byy}" r="6"/><path class="bw" d="M${bx},${byy-3.5}V${byy}h2.8"/>`;
+    a+="</g>"}
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${Math.round(W*1.3)}px;height:auto" role="group" aria-label="Fluxograma da fase">${a}</svg>`}
+function painel(n){const s=stat(n),P=partes(n),o=ORG[laneOrg(n.l)];
+  return `<div class="pt"><h3>${ab(n.q||SH[n.id])}</h3><span style="flex:1"></span><span class="st ${s}">${STN[s]}</span></div>${P.l}${P.a?`<div class="acoes">${P.a}</div>`:""}${P.x}`
+    +`<div class="caixa"><h4>Quem faz</h4><p><span class="tag b${n.l}">${laneOrg(n.l)}</span> ${o[0]}. ${ab(o[2])}</p><h4>Base</h4><p>${ab(n.bn)}</p></div><div class="acoes">${tg("Detalhes completos","Histórico")}</div>${extra(n)}`}
+function pedidoLargo(){const f=S.fase,q=path().filter(n=>n.f===f),X=F[f];
+  if(q.length&&!(S.sel.k==="n"&&q.some(n=>n.id===S.sel.id))){const c=cur();S.sel={k:"n",id:(c&&c.f===f?c:q[0]).id}}
+  return `<div class="cartao">${trilho()}${q.length?`<div class="sc">${diagram(q)}</div>`:`<div class="aviso">Esta fase não existe em ${TIPO[S.tipo].toLowerCase()}.</div>`}<div class="caixa"><p><b>Resumo da Fase ${f+1}:</b> ${ab(X[1])} ${ab(X[4])}</p><p class="nota"><b>Entra</b> ${ab(X[2])} → <b>Sai</b> ${ab(X[3])}</p></div></div>`
+    +`<div class="cartao pn">${q.length?painel(by(S.sel.id)):`<p class="nota">Nenhum passo nesta fase.</p>`}</div>`}
+
+/* ---------- aba Processo: mapa vertical ---------- */
+function mapa(){const p=path(),lg=larga();if(lg&&!(S.prev&&p.some(n=>n.id===S.prev))){const c=cur();S.prev=(c||p[0]).id}
+  const rows=F.map((X,f)=>{const q=p.filter(n=>n.f===f),st_=fst(f);
+    return `<div class="mfa${S.fase===f?" at":""}${q.length?"":" na"}"><button class="nm" data-ir="${f}" data-tip="Abrir esta fase na aba Pedido.">${f+1}. ${X[0]}</button><div class="seq">`
+      +q.map(n=>{const s=stat(n);return `<button class="no ${s}${lg&&S.prev===n.id?" sel":""}" style="border-left-color:var(--s${n.l})" ${lg?"data-pv":"data-n"}="${n.id}" data-tip="${esc(lab(n)+". "+STN[s]+". "+laneNome(n.l)+"."+sg(lab(n)+" "+SH[n.id]+" "+laneOrg(n.l)))}">${s==="done"?"✓":s==="wait"?REL:n.kind==="gw"?"◇":""}${esc(SH[n.id])}</button>`}).join("")
+      +`</div><span class="st ${st_.s==="na"?"":st_.s}">${q.length?st_.dn+"/"+st_.q.length:"não se aplica"}</span></div>`}).join("");
+  const esq=`<div class="mapa">${rows}</div>`;if(!lg)return esq;
+  const n=by(S.prev),s=stat(n),u=S.h.filter(x=>x[2]===n.id).pop();
+  return `<div class="cartao">${esq}</div><div class="cartao pn"><h4>Passo selecionado</h4><div class="pt"><h3>${ab(n.q||lab(n))}</h3></div><div class="pt"><span class="st ${s}">${STN[s]}</span><span class="tag b${n.l}" tabindex="0" data-tip="${tipSetor(n.l)}">${laneNome(n.l)}</span><span class="nota">Fase ${n.f+1}: ${F[n.f][0]}</span></div><p>${u?`<span class="nota num">${u[0]}</span> ${ab(u[1])}`:ab(v(n.e,S.tipo))}</p><span style="flex:1"></span><div class="acoes"><button class="pri" data-n="${n.id}" style="flex:1">Abrir este passo →</button></div></div>`}
+
+/* ---------- Comparar, Documentos, Histórico, legenda ---------- */
+function comparar(){const f=S.fase;let r="";
+  N.filter(n=>n.f===f).forEach(n=>{const dif=n.tp.length<3||typeof n.t==="object";
+    r+=`<tr class="${dif?"dif":""}"><td>${ab(laneNome(n.l).replace("NUAL","NPDOC ou NUAL"))}${dif?`<span class="selo">difere</span>`:""}</td>`+["p","c","s"].map(t=>n.tp.includes(t)?`<td>${ab(n.kind==="gw"?"◇ "+lab(n,t):lab(n,t))}${n.cond?" (se sim)":""}</td>`:`<td class="nao">não tem</td>`).join("")+`</tr>`});
+  return trilho()+`<div class="cartao cresce rol"><div class="fh"><h2>Fase ${f+1}: ${F[f][0]}, nos três tipos de compra</h2><span class="nota">Troque de fase no trilho acima.</span></div><table><tr><th>Quem faz</th><th>Permanente</th><th>Consumo</th><th>Serviço</th></tr>${r}</table></div>`}
+function docsView(){const q=path().filter(n=>n.k==="peca"&&!skip(n));
+  return `<div class="cartao cresce rol"><div class="fh"><h2>Minutas do pedido</h2><span class="nota">${q.filter(n=>S.docs[n.id]).length} de ${q.length} geradas</span></div><table><tr><th>Documento e fase</th><th>Arquivo e data</th><th>Nº ${ab("SEI")}</th></tr>`
+    +q.map(n=>{const d=S.docs[n.id];return `<tr class="clicavel" data-n="${n.id}" tabindex="0" data-tip="Ir para este passo"><td>${ab(n.doc)}<small>${n.f+1}. ${F[n.f][0]}</small></td><td class="arq">${d?`${arq(n)}<small class="num">${d}</small><button type="button" class="mini" data-dl="${esc(arq(n))}">Baixar uma nova cópia</button>`:`<span class="nota">ainda não gerada</span>`}</td><td class="num">${S.sei[n.id]?esc(S.sei[n.id]):"–"}</td></tr>`}).join("")
+    +`<tr><td>Checklist do processo, para anexar<small>todas as fases</small></td><td class="arq">${S.docs._ck?`${esc(S.arqs._ck||"")}<small class="num">${S.docs._ck}</small><button type="button" class="mini" data-dl="${esc(S.arqs._ck||"")}">Baixar uma nova cópia</button>`:`<span class="nota">ainda não gerado</span>`}</td><td class="num">–</td></tr></table>`
+    +`<p class="nota">Cada minuta sai no passo em que é usada. O checklist pode ser gerado a qualquer momento.</p><div class="botoes"><button class="pri" data-a="ck">${S.docs._ck?"Gerar o checklist de novo":"Gerar o checklist"}</button>${S.docs._ck?`<button data-a="abrirck">Baixar o checklist (Word)</button>`:""}<button data-a="pasta">Baixar todas as minutas (.zip)</button><button type="button" data-del="${esc(PED.id)}">Apagar este pedido</button></div>${S.msg?`<p class="nota" role="status">${S.msg}</p>`:""}</div>`}
+function legenda(){const L=[
+   [`<circle class="ev" cx="27" cy="17" r="9"/>`,"Início","Círculo de linha fina. É onde o processo, ou a fase, começa."],
+   [`<circle class="ev end" cx="27" cy="17" r="9"/>`,"Fim","Círculo de linha grossa. É onde termina."],
+   [`<rect class="shx" x="6" y="5" width="42" height="24" rx="7"/><rect class="s1" x="8" y="9" width="4" height="16" rx="2"/>`,"Tarefa","Um trabalho que alguém faz. O friso colorido à esquerda mostra o setor responsável."],
+   [`<rect class="shx" x="6" y="3" width="42" height="28" rx="6"/><rect x="22" y="20" width="10" height="10" class="shx"/><path d="M24.5,25h5M27,22.5v5" class="mk1"/>`,"Fase (subprocesso)","Um conjunto de tarefas. No trilho do alto, cada número é uma fase; clique para abrir."],
+   [`<polygon class="shx" points="27,3 41,17 27,31 13,17"/><path class="mk" d="M22,12l10,10M32,12l-10,10"/>`,"Decisão","Uma pergunta. Só um dos caminhos segue, conforme a resposta."],
+   [`<circle class="shx" cx="27" cy="17" r="13"/><circle cx="27" cy="17" r="10" class="mk1"/><path class="mk" stroke-width="1.3" d="M27,10v7h5"/>`,"Espera com prazo","O processo fica parado até o prazo acabar."],
+   [`<rect class="ln" x="2" y="4" width="50" height="26"/><rect class="lb c1" x="2" y="4" width="14" height="26"/><path d="M16,17h36" class="mk1"/>`,"Raias","Cada faixa é um setor. A tarefa fica na faixa de quem a faz."],
+   [`<path class="ed" d="M6,17H46" marker-end="url(#a1)"/>`,"Seta cheia","A ordem das tarefas dentro da região."],
+   [`<path class="mf" d="M6,17H46" marker-start="url(#a3)" marker-end="url(#a2)"/>`,"Seta tracejada","Mensagem trocada com quem está fora da região: a empresa ou a Administração Central."],
+   [`<path class="dob" d="M19,4h10l6,6v20h-16z"/>`,"Documento","O papel que a tarefa produz e que entra no processo SEI. Preenchido quando a minuta já foi gerada."],
+   [`<g class="nd done"><rect class="sh" x="6" y="5" width="42" height="24" rx="7"/></g><circle class="ck" cx="46" cy="7" r="6"/><path class="bw" d="M43,7l2.2,2.4l3.8,-4.6"/>`,"Verde com visto","Passo já feito."],
+   [`<g class="nd wait"><rect class="sh" x="6" y="5" width="42" height="24" rx="7"/></g><circle class="wt" cx="46" cy="7" r="6"/><path class="bw" d="M46,3.5V7h2.8"/>`,"Âmbar com relógio","Você já pediu e está aguardando outro setor."],
+   [`<g class="nd cur"><rect class="sh" x="6" y="5" width="42" height="24" rx="7"/></g>`,"Destaque com borda grossa","É a vez deste passo."]];
+  return `<div class="cartao cresce rol"><div class="fh"><h2>Como ler o desenho</h2><button class="mini" data-a="leg">Fechar</button></div><p>O fluxograma segue a notação <abbr tabindex="0" data-tip="${esc(tipOrg("BPMN"))}">BPMN</abbr>, a norma internacional para desenhar processos. Na meia tela o fluxo corre de cima para baixo; na tela larga, da esquerda para a direita, com raias.</p><div class="leg">${L.map(x=>`<div><svg width="54" height="34" viewBox="0 0 54 34">${x[0]}</svg><span><b>${x[1]}</b>${ab(x[2])}</span></div>`).join("")}</div></div>`}
+
+/* ---------- explicação detalhada do processo ---------- */
+function explicacao(){const p=path(),dx=(t,x)=>x?`<dt>${t}</dt><dd>${ab(x)}</dd>`:"";
+  const tipos=PED?`<span class="nota">${TIPO[S.tipo]}</span>`:Object.keys(TIPO).map(k=>`<button class="mini" data-tp="${k}" aria-pressed="${S.tipo===k}">${TIPO[k]}</button>`).join("");
+  return trilho()+`<div class="cartao cresce rol"><div class="fh"><h2>Explicação do processo</h2>${tipos}<a class="bt" href="index.html">Voltar ao pedido</a></div>`
+    +F.map((X,f)=>{const q=p.filter(n=>n.f===f);let i=0;
+      return `<section class="expf" id="expf${f}"><h3>Fase ${f+1}: ${X[0]}</h3>`+(q.length?faseTxt(f)+`<div class="sc">${diagram(q)}</div>`+q.map(n=>{if(n.kind==="task")i++;const gw=n.kind==="gw";
+        return `<div class="expp" id="xp-${n.id}" style="border-left-color:var(--s${n.l})"><p><b>${gw?"Decisão: ":n.kind==="task"?i+". ":""}${ab(gw?n.q:lab(n))}</b> <span class="tag b${n.l}">${laneCurto(n.l)}</span></p>`
+          +(gw?`<p>Sim: ${ab(n.sim)}</p><p>Não: ${ab(n.nao)}</p>`:`<p>${ab(v(n.e,S.tipo))}</p>`)
+          +`<dl>${dx("O que pedir",v(n.pd,S.tipo))}${dx("O que volta",n.vt)}${dx("Prazo",n.pz)}${dx("Como obter ou cobrar",n.ob)}${dx("Ao voltar",n.dv)}${dx("Documento",n.doc)}${dx("Base",n.bn)}</dl></div>`}).join("")
+        :`<p class="nota">Esta fase não existe em ${TIPO[S.tipo].toLowerCase()}.</p>`)+`</section>`}).join("")+`</div>`}
+
+/* ---------- lista de pedidos ---------- */
+function andamento(p){const t=TP[p.tipo],f=p.fluxo||{},d=f.d||{},a=f.ans||{},q=N.filter(n=>n.tp.includes(t)&&!(n.cond&&a[n.cond]==="n")),c=q.find(n=>d[n.id]!=="d");
+  return `${q.filter(n=>d[n.id]==="d").length}/${q.length} · `+(c?`Fase ${c.f+1}: ${F[c.f][0]}`+(d[c.id]==="w"?" (aguardando)":""):"concluído")}
+function pedidosView(){
+  return `<div class="cartao cresce rol"><div class="fh"><h2>Pedidos</h2><a class="bt" href="index.html" data-tip="Abre as telas de preenchimento: item, quantidade, condições e texto. Ao gerar as minutas, o pedido entra nesta lista.">Novo pedido</a></div>`
+    +(LISTA.length?`<table><tr><th>Pedido</th><th>Tipo</th><th>Andamento</th><th>Criado em</th><th></th></tr>${LISTA.map(p=>`<tr class="clicavel" data-p="${esc(p.id)}" tabindex="0" data-tip="Abrir este pedido no fluxo"><td>${esc(p.codigo||"Serviço")}<small>${esc(p.item)}</small></td><td>${TIPO[TP[p.tipo]]||"–"}</td><td>${TP[p.tipo]?andamento(p):"–"}</td><td class="num">${esc(p.criado)}</td><td><button type="button" class="mini" data-del="${esc(p.id)}">Apagar</button></td></tr>`).join("")}</table>`
+      :`<p>Nenhum pedido gerado ainda. Comece por “Novo pedido”: você preenche o item, a quantidade e os textos, e a ferramenta gera as minutas. Depois o pedido aparece aqui, para acompanhar passo a passo.</p>`)
+    +`<p class="nota">Pedidos que você começou a preencher e ainda não gerou ficam guardados no formulário, em “Rascunhos”.</p>${S.msg?`<p class="aviso" role="status">${esc(S.msg)}</p>`:""}</div>`}
+async function carregarLista(){try{LISTA=(await api("/api/pedidos")).pedidos}catch(e){S.msg=e.message}}
+async function abrirPedido(id){try{PED=await api("/api/pedido?id="+encodeURIComponent(id))}catch(e){S.msg=e.message;S.view="pedidos";render();return}
+  if(!TP[PED.tipo]){S.msg="Este pedido não tem tipo definido; não dá para montar o fluxo.";PED=null;S.view="pedidos";render();return}
+  const f=PED.fluxo||{};S.tipo=TP[PED.tipo];S.d=f.d||{};S.sei=f.sei||{};S.h=f.h||[];
+  S.ans=f.ans||{g:PED.ata==="vigente"?"s":PED.ata==="sem"?"n":undefined,gs1:PED.reparo?"s":"n",gs2:PED.predio?"s":"n"};
+  if(S.ans.g===undefined)delete S.ans.g;
+  if(!S.h.length)log("Pedido aberto no fluxo. Minutas encontradas na pasta: "+PED.arquivos.length+".","_ck");
+  montarDocs();S.msg="";S.view="pedido";S.leg=false;S.prev="";ultimoSalvo="";const c=cur();selFase(c?c.f:(typeof f.fase==="number"?f.fase:0));render()}
+
+/* ---------- montagem e eventos ---------- */
+const $=id=>document.getElementById(id);
+function render(){const C=$("corpo"),A=$("app"),lg=larga();if(!PED&&S.view!=="exp")S.view="pedidos";
+  A.classList.toggle("wide",lg);A.dataset.tema=S.tema;A.dataset.cor=S.cor;
+  $("bWide").textContent=S.wide?"Reduzir":"Ampliar";$("estilo").value=S.tema+"-"+S.cor;
+  document.querySelectorAll("#vtabs button").forEach(b=>{b.setAttribute("aria-selected",!S.leg&&b.dataset.v===S.view);b.disabled=!PED&&b.dataset.v!=="pedidos"&&b.dataset.v!=="exp"});
+  const noPedido=PED&&S.view!=="pedidos";let h,duo=false;
+  if(S.leg)h=legenda();
+  else if(S.view==="exp")h=explicacao();
+  else if(S.view==="pedidos")h=pedidosView();
+  else if(S.view==="comparar")h=comparar();
+  else if(S.view==="docs")h=docsView();
+  else if(S.view==="hist")h=`<div class="cartao cresce rol"><div class="fh"><h2>Histórico do pedido</h2></div>${hist()}</div>`;
+  else if(S.view==="inteiro"){h=mapa();duo=lg}
+  else if(lg){h=pedidoLargo();duo=true}
+  else h=pedidoEstreito();
+  $("ctxid").textContent=QUEDA?"A ferramenta foi encerrada: feche esta janela e abra de novo pelo atalho.":noPedido?(PED.codigo||"Serviço")+" · "+PED.item+" · "+TIPO[S.tipo]:S.view==="exp"?"Explicação do processo":"Pedidos em andamento";
+  $("res").innerHTML=noPedido?resumo():"";
+  C.className="corpo"+(duo?" duo":"");C.innerHTML=h;if(S.view==="exp"&&!S.leg){const x=$("expf"+S.fase);if(x&&S.fase)x.scrollIntoView()}save()}
+async function gerar(chave,rotulo,id){try{const r=await api("/api/gerar_peca",{id:PED.id,peca:chave});PED.arquivos=r.arquivos;montarDocs();log("Minuta gerada: "+r.arquivo+".",id);S.msg="Gerada: "+r.arquivo}catch(e){S.msg="Não gerei "+rotulo+": "+e.message}render()}
+function abrirArq(nome){api("/api/abrir",{alvo:nome?PED.pasta+"\\"+nome:PED.pasta}).catch(e=>{S.msg=e.message;render()})}
+function act(a){S.msg="";const n=S.sel.k==="n"?by(S.sel.id):null,sei=(($("sei")||{}).value||"").trim();
+  if(a==="leg")S.leg=!S.leg;
+  else if(a==="fase")S.sel=S.sel.k==="f"?{k:"x"}:{k:"f"};
+  else if(a==="bpmn")S.bp=!S.bp;
+  else if(a==="ck")return gerar("checklist","o checklist","_ck");
+  else if(a==="abrirck")return abrirArq(S.arqs._ck);
+  else if(a==="pasta")return abrirArq("");
+  else if(!n)return;
+  else if(a==="minuta")return gerar(PK[n.id],"a minuta",n.id);
+  else if(a==="abrir")return abrirArq(arq(n));
+  else if(a==="pedi"){S.d[n.id]="w";log("Pedido registrado. Aguardando "+laneNome(n.l)+".",n.id)}
+  else if(a==="reabrir"){delete S.d[n.id];log("Passo reaberto.",n.id)}
+  else if(a==="feito"||a==="sim"||a==="nao"){S.d[n.id]="d";
+    if(a==="feito"){if(sei)S.sei[n.id]=sei;log((n.kind==="timer"?"Prazo encerrado.":n.k==="peca"?"Marcado como feito.":"Devolutiva registrada.")+(sei?" SEI "+sei+".":""),n.id)}
+    else{S.ans[n.id]=a==="sim"?"s":"n";log("Decisão “"+n.t+"”: "+(a==="sim"?"sim":"não")+".",n.id)}
+    const c=cur();if(c){S.fase=c.f;S.sel={k:"n",id:c.id};S.sub=""}}
+  render()}
+function janela(ampla){try{const sw=screen.availWidth,sh=screen.availHeight,x0=screen.availLeft||0,y0=screen.availTop||0,w=ampla?Math.min(sw,1300):Math.floor(sw/2);
+  window.resizeTo(w,sh);window.moveTo(x0+sw-w,y0)}catch(e){}}
+const tip=$("tip");
+function showTip(el){tip.textContent=el.dataset.tip;tip.hidden=false;const r=el.getBoundingClientRect(),w=tip.offsetWidth,h=tip.offsetHeight;
+  let x=Math.max(8,Math.min(r.left+r.width/2-w/2,innerWidth-w-8)),y=r.bottom+8;if(y+h>innerHeight-8)y=r.top-h-8;tip.style.left=x+"px";tip.style.top=Math.max(8,y)+"px"}
+document.addEventListener("mouseover",e=>{const el=e.target.closest&&e.target.closest("[data-tip]");if(el)showTip(el);else tip.hidden=true});
+document.addEventListener("focusin",e=>{const el=e.target.closest&&e.target.closest("[data-tip]");if(el&&e.target.matches(":focus-visible"))showTip(el)});
+["focusout","scroll"].forEach(ev=>document.addEventListener(ev,()=>{tip.hidden=true},true));
+document.addEventListener("click",async e=>{tip.hidden=true;const t=e.target;let el;
+  if(el=t.closest("[data-p]"))abrirPedido(el.dataset.p);
+  else if(el=t.closest("[data-tp]")){if(!PED){S.tipo=el.dataset.tp;render()}}
+  else if(el=t.closest("[data-pv]")){S.prev=el.dataset.pv;render()}
+  else if(el=t.closest("[data-n]")){const id=el.dataset.n;if(S.view==="exp"&&!S.leg){const x=$("xp-"+id);if(x)x.scrollIntoView({block:"center"});return}const era=S.view==="pedido"&&!S.leg&&!larga()&&S.sel.k==="n"&&S.sel.id===id&&el.classList.contains("cab");
+    S.msg="";S.view="pedido";S.leg=false;S.fase=by(id).f;S.sub="";S.sel=era?{k:"x"}:{k:"n",id};render()}
+  else if(el=t.closest("[data-ir]")){S.view="pedido";selFase(+el.dataset.ir);render()}
+  else if(el=t.closest("[data-f]")){selFase(+el.dataset.f);render()}
+  else if(el=t.closest("[data-sb]")){S.sub=S.sub===el.dataset.sb?"":el.dataset.sb;render()}
+  else if(el=t.closest("[data-v]")){if(el.disabled)return;S.view=el.dataset.v;S.leg=false;S.msg="";if(S.view==="pedidos")await carregarLista();render()}
+  else if(el=t.closest("[data-a]"))act(el.dataset.a);
+  else if(t.id==="bLeg")act("leg");
+  else if(t.id==="bWide"){S.wide=!S.wide;janela(S.wide);render()}});
+document.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches&&e.target.matches("g[tabindex],tr[tabindex]")){e.preventDefault();e.target.dispatchEvent(new MouseEvent("click",{bubbles:true}))}});
+$("estilo").addEventListener("change",e=>{[S.tema,S.cor]=e.target.value.split("-");render()});
+setInterval(()=>fetch("/api/ping").then(()=>{if(QUEDA){QUEDA=false;render()}}).catch(()=>{if(!QUEDA){QUEDA=true;render()}}),8000);
+(async function(){const q=new URLSearchParams(location.search),p=q.get("p");
+  if(q.get("exp")){S.view="exp";S.fase=Math.min(8,Math.max(0,+q.get("f")||0));render()}
+  if(location.search)history.replaceState(null,"",location.pathname);
+  await carregarLista();
+  if(p)await abrirPedido(p);else if(S.view!=="exp")render()})();
+document.addEventListener("click",e=>{const b=e.target.closest("[data-dl]");if(b){e.stopPropagation();e.preventDefault();abrirArq(b.dataset.dl)}},true);
+document.addEventListener("click",async e=>{const b=e.target.closest("[data-del]");if(!b)return;e.stopPropagation();e.preventDefault();if(b.dataset.conf!=="1"){b.dataset.conf="1";b.textContent="Confirmar: apagar de vez";return}try{await api("/api/apagar_pedido",{id:b.dataset.del});if(PED&&PED.id===b.dataset.del){PED=null;S.view="pedidos"}S.msg="Pedido apagado deste aparelho.";await carregarLista();render()}catch(x){S.msg=x.message;render()}},true);
+</script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 (function () {
   const PYO = "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/";
   const BASE = new URL("./", document.currentScript ? document.currentScript.src : location.href).href;
-  const ARQS = ["motor.py", "pecas.py", "textos.py", "historico.py", "web_api.py", "regras.json", "dados/catalogo.json", "dados/textos_itens.json"];
+  const ARQS = ["motor.py", "pecas.py", "textos.py", "historico.py", "controle.py", "web_api.py", "regras.json", "dados/catalogo.json", "dados/textos_itens.json"];
   const realFetch = window.fetch.bind(window);
   let py = null, msg = null;
 
@@ -102,7 +102,11 @@
   /* backup: levar os pedidos de um computador para outro */
   function barra() {
     const b = document.createElement("details");
-    b.style.cssText = "position:fixed;right:8px;top:8px;z-index:9999;font:13px system-ui,sans-serif;background:var(--cartao,#fff);color:var(--tx,#222);border:1px solid #9aa;border-radius:8px;padding:4px 8px;max-width:260px";
+    /* a caixa fica numa faixa própria no alto, para não cobrir os botões da página */
+    const st = document.createElement("style");
+    st.textContent = "body{box-sizing:border-box;padding-top:30px!important}.app{height:calc(100vh - 30px)!important}.app.wide{height:auto!important;min-height:calc(100vh - 30px)!important}";
+    document.head.appendChild(st);
+    b.style.cssText = "position:fixed;right:8px;top:3px;z-index:9999;font:13px system-ui,sans-serif;background:var(--cartao,#fff);color:var(--tx,#222);border:1px solid #9aa;border-radius:8px;padding:4px 8px;max-width:260px";
     b.innerHTML = '<summary style="cursor:pointer">Levar para outro computador</summary><p style="margin:6px 0">Os pedidos ficam só neste aparelho. Salve o backup (guarde no Drive ou OneDrive) e carregue no outro aparelho. As minutas são refeitas na hora.</p><button type="button" id="wbSalvar" style="margin:2px">Salvar backup</button><label style="display:inline-block;border:1px solid #889;border-radius:6px;padding:2px 8px;margin:2px;cursor:pointer">Carregar backup<input id="wbCarregar" type="file" accept=".json,application/json" hidden></label><div id="wbMsg" style="margin-top:4px"></div><hr style="margin:8px 0"><b>Drive e planilha mestra</b><p style="margin:4px 0">Cole o endereço do seu script do Google e o código que você definiu nele.</p><input id="wbUrl" placeholder="endereço do script (https://script.google.com/…/exec)" style="width:100%;box-sizing:border-box;margin:2px 0"><input id="wbCod" type="password" placeholder="código" autocomplete="off" style="width:100%;box-sizing:border-box;margin:2px 0"><label style="display:block;margin:2px 0"><input id="wbAuto" type="checkbox"> Salvar sozinho a cada alteração</label><button type="button" id="wbTestar" style="margin:2px">Conectar e testar</button><button type="button" id="wbEnviar" style="margin:2px">Enviar tudo agora</button><button type="button" id="wbTrazer" style="margin:2px">Trazer do Drive</button><button type="button" id="wbSair" style="margin:2px">Desconectar</button><div id="wbNuvem" style="margin-top:4px"></div><p style="margin:6px 0"><a href="https://github.com/gapapsnorte/pdpas-fluxo/blob/main/apps_script/TRANSPLANTAR.md" target="_blank" rel="noopener">Como trocar de conta</a></p>';
     document.body.appendChild(b);
     nuvemUI(b);
