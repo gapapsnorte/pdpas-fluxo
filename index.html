@@ -223,6 +223,11 @@ body{padding:0;background:#fff}
 .app.wide{height:auto;min-height:100vh}
 .ctx select{font-size:.8rem;padding:0 4px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--muted)}
 .abas button:disabled{opacity:.4;cursor:default}
+.intro{border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:4px 10px;flex:none}
+.intro summary{cursor:pointer;font-weight:var(--pes);padding:3px 0}
+.intro h3{margin:8px 0 2px;font-size:.92rem;font-weight:var(--pes)}
+.intro ul,.intro ol{margin:0;padding-left:20px}.intro li{margin:2px 0}
+.intro p{margin:2px 0}
 a.bt{text-decoration:none;display:inline-block;padding:3px 12px;border-radius:7px;background:var(--accent);color:var(--sobre);font-weight:var(--pes);font-size:.9rem;border:1px solid var(--accent)}
 </style>
 </head>
@@ -551,8 +556,34 @@ function legenda(){const L=[
 /* ---------- lista de pedidos ---------- */
 function andamento(p){const t=TP[p.tipo],f=p.fluxo||{},d=f.d||{},a=f.ans||{},q=N.filter(n=>n.tp.includes(t)&&!(n.cond&&a[n.cond]==="n")),c=q.find(n=>d[n.id]!=="d");
   return `${q.filter(n=>d[n.id]==="d").length}/${q.length} · `+(c?`Fase ${c.f+1}: ${F[c.f][0]}`+(d[c.id]==="w"?" (aguardando)":""):"concluído")}
+function intro(){const ab=S.ajuda===undefined?!LISTA.length:S.ajuda;
+  return `<details class="intro"${ab?" open":""} ontoggle="S.ajuda=this.open"><summary>Primeira vez aqui? O que é esta ferramenta e como usar</summary>
+<h3>O que é</h3>
+<p>Esta ferramenta ajuda a montar e a acompanhar um pedido de compra ou de serviço pelo PDPAS, do memorando de intenção até o pagamento. PDPAS é o dinheiro repassado à Região de Saúde para compras e serviços pequenos e urgentes, sem licitação, dentro de um teto por item.</p>
+<p>Ela não assina nem envia nada no SEI: gera as minutas e mostra o caminho. Quem cola no SEI, assina e encaminha é você.</p>
+<h3>O que ela faz</h3>
+<ul><li><b>Escreve as minutas em Word</b>: memorando de intenção, despachos, Termo de Referência, checklist de conferência e as demais peças, cada uma no passo em que é usada.</li>
+<li><b>Avisa o que pode travar o pedido</b>: item que passa do teto por item, ata de registro de preços vigente, campo que faltou preencher.</li>
+<li><b>Sugere os textos</b> de justificativa e benefícios para cada item do catálogo da SES. Você lê, ajusta e valida. A quantidade é sempre sua.</li>
+<li><b>Mostra o caminho em 9 fases</b>: em cada passo diz quem faz, o que pedir, o que esperar e o que fazer quando a resposta voltar.</li>
+<li><b>Guarda o andamento</b>: o que já foi feito, o que está aguardando, o número SEI de cada documento e o histórico.</li>
+<li><b>Compara os três tipos</b> de pedido: material permanente, material de consumo e serviço.</li></ul>
+<h3>Como usar</h3>
+<ol><li>Clique em <b>Novo pedido</b> e preencha as cinco telas: Item, Quantidade, Condições, Texto e Revisar.</li>
+<li>Na tela Revisar, confira os avisos e gere as minutas. O pedido passa a aparecer nesta lista.</li>
+<li>Clique no pedido para abrir o caminho dele. O passo da vez vem aberto, com a minuta e a lista do que fazer.</li>
+<li>Em cada passo: baixe a minuta, cole no SEI, anote o número SEI e clique em <b>Registrar que pedi</b>. Quando a resposta voltar, clique em <b>Registrar devolutiva</b> ou <b>Marcar como feito</b>.</li>
+<li>Volte quando quiser: o andamento fica guardado. <span id="ondefica">Nesta versão do navegador, os pedidos ficam só neste aparelho. Para continuar em outro, use “Levar para outro computador”, no formulário.</span></li></ol>
+<h3>As abas do alto</h3>
+<ul><li><b>Pedidos</b>: esta tela, com a lista dos pedidos e o botão Novo pedido.</li>
+<li><b>Pedido</b>: o caminho do pedido aberto, fase por fase.</li>
+<li><b>Processo</b>: as nove fases e todos os passos numa tela só.</li>
+<li><b>Comparar</b>: o que muda entre permanente, consumo e serviço.</li>
+<li><b>Documentos</b>: todas as minutas do pedido.</li>
+<li><b>Histórico</b>: tudo o que foi registrado, em ordem.</li></ul>
+<p class="nota">As abas depois de Pedidos só acendem com um pedido aberto. O botão <b>?</b> explica os símbolos do desenho. <b>Ampliar</b> mostra o fluxograma em raias, por setor. Palavras sublinhadas e botões mostram uma explicação quando você para o mouse (ou toca) em cima.</p></details>`}
 function pedidosView(){
-  return `<div class="cartao cresce rol"><div class="fh"><h2>Pedidos</h2><a class="bt" href="formulario.html" data-tip="Abre as telas de preenchimento: item, quantidade, condições e texto. Ao gerar as minutas, o pedido entra nesta lista.">Novo pedido</a></div>`
+  return `<div class="cartao cresce rol"><div class="fh"><h2>Pedidos</h2><a class="bt" href="formulario.html" data-tip="Abre as telas de preenchimento: item, quantidade, condições e texto. Ao gerar as minutas, o pedido entra nesta lista.">Novo pedido</a></div>`+intro()
     +(LISTA.length?`<table><tr><th>Pedido</th><th>Tipo</th><th>Andamento</th><th>Criado em</th><th></th></tr>${LISTA.map(p=>`<tr class="clicavel" data-p="${esc(p.id)}" tabindex="0" data-tip="Abrir este pedido no fluxo"><td>${esc(p.codigo||"Serviço")}<small>${esc(p.item)}</small></td><td>${TIPO[TP[p.tipo]]||"–"}</td><td>${TP[p.tipo]?andamento(p):"–"}</td><td class="num">${esc(p.criado)}</td><td><button type="button" class="mini" data-del="${esc(p.id)}">Apagar</button></td></tr>`).join("")}</table>`
       :`<p>Nenhum pedido gerado ainda. Comece por “Novo pedido”: você preenche o item, a quantidade e os textos, e a ferramenta gera as minutas. Depois o pedido aparece aqui, para acompanhar passo a passo.</p>`)
     +`<p class="nota">Pedidos que você começou a preencher e ainda não gerou ficam guardados no formulário, em “Rascunhos”.</p>${S.msg?`<p class="aviso" role="status">${esc(S.msg)}</p>`:""}</div>`}
