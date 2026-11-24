@@ -16,6 +16,154 @@ COLUNAS = ["Situação", "Origem", "Data", "Código SES", "Item", "Tipo", "Quant
 LARGURAS = [16, 30, 12, 12, 48, 13, 12, 14, 34, 12, 24, 28, 24, 10, 40, 10, 18, 26]
 TIPOS = {"permanente": "Permanente", "consumo": "Consumo", "servico": "Serviço"}
 _INICIO_DE_FORMULA = ("=", "+", "-", "@", "\t", "\r")
+ORIGEM_MANUAL = "Lançado à mão"     # na coluna Origem: compra feita fora da ferramenta, digitada na planilha (24/11/2026)
+
+
+def _sem_acento(t) -> str:
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", str(t or "")) if unicodedata.category(c) != "Mn").lower().strip()
+
+
+def eh_manual(origem) -> bool:
+    return _sem_acento(origem).startswith("lancado a mao")
+
+
+def _numero(v) -> float | None:
+    """1.234,56 | 1234,56 | 1234.56 | R$ 1.234,56 | número do Excel."""
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return float(v) if math.isfinite(v) else None
+    s = str(v or "").replace("R$", "").replace("\xa0", "").replace(" ", "").strip()
+    if not s:
+        return None
+    if "," in s:
+        s = s.replace(".", "").replace(",", ".")
+    try:
+        x = float(s)
+    except ValueError:
+        return None
+    return x if math.isfinite(x) else None
+
+
+def _ano(v) -> int | None:
+    """Ano de dd/mm/aaaa, aaaa-mm-dd ou da data serial do Excel."""
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and 20000 < v < 80000:
+        from datetime import date, timedelta
+        return (date(1899, 12, 30) + timedelta(days=int(v))).year
+    s = str(v or "").strip()
+    for a, b in ((6, 10), (0, 4)):
+        if len(s) >= b and s[a:b].isdigit() and ((a == 0 and s[4:5] == "-") or (a == 6 and s[2:3] == "/")):
+            return int(s[a:b])
+    return None
+
+
+def ler_tabela(nome: str, dados: bytes) -> list[list]:
+    """Linhas da primeira aba de um .xlsx, ou de um .csv (ponto e vírgula, vírgula ou tabulação). Sem openpyxl:
+    roda igual no computador e no site."""
+    if str(nome).lower().endswith(".xlsx"):
+        import re
+        import zipfile
+        from xml.etree import ElementTree as ET
+        ns = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+        try:
+            z = zipfile.ZipFile(io.BytesIO(dados))
+            nomes = z.namelist()
+            comp = []
+            if "xl/sharedStrings.xml" in nomes:
+                for si in ET.fromstring(z.read("xl/sharedStrings.xml")).iter(ns + "si"):
+                    comp.append("".join(x.text or "" for x in si.iter(ns + "t")))
+            folhas = sorted(n for n in nomes if re.fullmatch(r"xl/worksheets/sheet\d+\.xml", n))
+            raiz = ET.fromstring(z.read("xl/worksheets/sheet1.xml" if "xl/worksheets/sheet1.xml" in nomes else folhas[0]))
+        except (zipfile.BadZipFile, KeyError, IndexError, ET.ParseError) as e:
+            raise ValueError("Não consegui ler esta planilha .xlsx. Salve de novo no Excel ou exporte como .csv.") from e
+        linhas = []
+        for row in raiz.iter(ns + "row"):
+            ln = {}
+            for c in row.iter(ns + "c"):
+                ref, tipo = c.get("r") or "", c.get("t")
+                col = 0
+                for ch in re.match(r"[A-Z]*", ref).group(0):
+                    col = col * 26 + ord(ch) - 64
+                v = c.find(ns + "v")
+                if tipo == "s" and v is not None:
+                    val = comp[int(v.text)] if int(v.text) < len(comp) else ""
+                elif tipo == "inlineStr":
+                    val = "".join(x.text or "" for x in c.iter(ns + "t"))
+                elif v is None:
+                    val = ""
+                elif tipo in ("str", "e"):
+                    val = v.text or ""
+                else:
+                    try:
+                        val = float(v.text)
+                    except (TypeError, ValueError):
+                        val = v.text or ""
+                ln[max(col, 1) - 1] = val
+            linhas.append([ln.get(i, "") for i in range(max(ln) + 1)] if ln else [])
+        return linhas
+    for cod in ("utf-8-sig", "cp1252"):
+        try:
+            texto = dados.decode(cod)
+            break
+        except UnicodeDecodeError:
+            continue
+    primeira = texto.split("\n", 1)[0]
+    sep = max((";", ",", "\t"), key=primeira.count)
+    return [ln for ln in csv.reader(io.StringIO(texto), delimiter=sep)]
+
+
+_CAMPOS = {"codigo": ("codigo ses", "codigo", "cod. ses", "codigo do item"), "valor": ("valor (r$)", "valor total", "valor"),
+           "data": ("data", "data da nf", "data da nota"), "situacao": ("situacao",), "origem": ("origem",),
+           "processo": ("processo sei", "processo"), "nf": ("nota fiscal", "nf")}
+
+
+def compras_da_tabela(linhas: list[list], so_manuais: bool = False) -> list[dict]:
+    """Compras de uma planilha (a desta ferramenta ou outra com colunas de código e valor). Linhas "Em andamento",
+    canceladas ou apagadas não contam: pedido em andamento entra pela própria ferramenta."""
+    def posicoes(ln):
+        cab = [_sem_acento(x) for x in ln]
+        return {k: next((cab.index(n) for n in nomes if n in cab), None) for k, nomes in _CAMPOS.items()}
+
+    i = next((j for j, ln in enumerate(linhas[:20]) if None not in (posicoes(ln)["codigo"], posicoes(ln)["valor"])), None)
+    if i is not None:
+        pos = posicoes(linhas[i])
+    else:
+        raise ValueError("Não achei as colunas de código e de valor na planilha. Use a planilha de controle da ferramenta "
+                         "ou uma com as colunas “Código SES”, “Valor (R$)” e “Data”.")
+    pega = lambda ln, k: ln[pos[k]] if pos[k] is not None and pos[k] < len(ln) else ""
+    saida = []
+    for ln in linhas[i + 1:]:
+        situacao, origem = _sem_acento(pega(ln, "situacao")), pega(ln, "origem")
+        if situacao.startswith(("em andamento", "cancelad", "apagad")) or (so_manuais and not eh_manual(origem)):
+            continue
+        codigo, valor = str(pega(ln, "codigo") or "").strip().upper(), _numero(pega(ln, "valor"))
+        if isinstance(pega(ln, "codigo"), float) and pega(ln, "codigo") == int(pega(ln, "codigo")):
+            codigo = str(int(pega(ln, "codigo")))
+        if not codigo or not valor or valor <= 0:
+            continue
+        saida.append({"codigo": codigo, "valor": round(valor, 2), "ano": _ano(pega(ln, "data")),
+                      "processo": str(pega(ln, "processo") or "").strip(), "nf": str(pega(ln, "nf") or "").strip(),
+                      "origem": str(origem or "").strip()})
+    return saida
+
+
+def linhas_manuais(arq: Path) -> list[list]:
+    """Linhas "Lançado à mão" de uma planilha de controle já existente, para não sumirem quando ela é refeita."""
+    if not arq.exists():
+        return []
+    linhas = ler_tabela(arq.name, arq.read_bytes())
+    if not linhas:
+        return []
+    cab = [_sem_acento(x) for x in linhas[0]]
+    if "origem" not in cab:
+        return []
+    o = cab.index("origem")
+    saida = []
+    for ln in linhas[1:]:
+        if o < len(ln) and eh_manual(ln[o]):
+            nova = (list(ln) + [""] * len(COLUNAS))[:len(COLUNAS)]
+            nova[7] = _numero(nova[7]) if _numero(nova[7]) is not None else nova[7]
+            saida.append(nova)
+    return saida
 
 
 def _texto_seguro(v):

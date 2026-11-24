@@ -19,6 +19,7 @@ import pecas
 
 CHAVE = "pdpas-web-v1"
 CHAVE_HIST = "pdpas-web-historico-v1"
+CHAVE_COMPRAS = "pdpas-web-compras-v1"     # planilha de compras anteriores carregada neste aparelho (24/11/2026)
 TMP = Path("/tmp/processos")
 CAT = motor.Catalogo()
 motor.CAT_ITEM = CAT.achar
@@ -98,10 +99,6 @@ def _resumo() -> dict:
             "consumo_ate": max(meses, default=""), "pasta": "", "compartilhada": ""}
 
 
-def _sei() -> dict:
-    return {"disponivel": False, "devida": False, "rodando": False, "fase": "", "historico": _resumo()}
-
-
 def _pasta_nome(analise: dict) -> str:
     nome = re.sub(r"[^\w-]+", "_", analise.get("codigo") or "servico")
     return f"{date.today().isoformat()}_{nome}"
@@ -129,6 +126,39 @@ def _info(pid: str, reg: dict) -> dict:
             "ata": p.get("ata") or "", "reparo": bool(p.get("reparo_equipamento")), "predio": bool(p.get("altera_predio")),
             "gsap_origem": p.get("gsap_origem") or "", "criado": reg.get("criado_br") or "",
             "arquivos": reg.get("arquivos") or [], "fluxo": reg.get("fluxo") or {}}
+
+
+def _compras_guardadas() -> dict:
+    try:
+        c = json.loads(_ls().getItem(CHAVE_COMPRAS) or "{}")
+    except ValueError:
+        return {}
+    return c if isinstance(c, dict) else {}
+
+
+def _compras_da_planilha(codigo: str, ano: int) -> list[dict]:
+    """Teto no site: compras da planilha que a pessoa carregou neste aparelho (só o que ela mesma trouxe)."""
+    cod = str(codigo or "").strip().upper()
+    return [c for c in _compras_guardadas().get("compras", []) if c.get("codigo") == cod and c.get("ano") in (ano, None)]
+
+
+def _pedidos_em_andamento(codigo: str, ano: int, excluir: str = "") -> list[dict]:
+    """Teto no site: pedidos gerados neste aparelho, do mesmo código e ano, ainda não atestados, pagos ou cancelados."""
+    saida = []
+    for pid, reg in _ler()["pedidos"].items():
+        if pid == excluir:
+            continue
+        criado = str(reg.get("criado") or "")[:4]
+        valor = motor.conta_no_teto(reg.get("pedido") or {}, reg.get("fluxo") or {}, codigo, ano,
+                                    int(criado) if criado.isdigit() else None)
+        if valor:
+            saida.append({"id": pid, "valor": valor})
+    return saida
+
+
+motor.PEDIDOS_EM_ANDAMENTO = _pedidos_em_andamento
+motor.COMPRAS_DA_PLANILHA = _compras_da_planilha
+motor.FALTA_PLANILHA = lambda: not _compras_guardadas().get("nome")
 
 
 def _quando() -> str:
@@ -240,13 +270,26 @@ def _rota(metodo: str, caminho: str, q: dict, d: dict):
         ras = sorted([{**v, "id": i} for i, v in estado["rascunhos"].items() if (v.get("pedido") or {}).get("tipo")],
                      key=lambda x: x.get("atualizado", ""), reverse=True)
         return {"gsaps": r["gsaps"], "ano": r["ano"], "catalogo_em": CAT.atualizado_em[:10], "historico": _resumo(), "rascunhos": ras,
-                "n_itens": len(CAT.itens), "saida": "", "naturezas": motor.naturezas_do_ano(r["ano"]), "avisos": historico.AVISOS, "sei": _sei()}
-    if caminho == "/api/sei_status":
-        return _sei()
-    if caminho in ("/api/sei_cancelar", "/api/sair"):
+                "n_itens": len(CAT.itens), "saida": "", "naturezas": motor.naturezas_do_ano(r["ano"]), "avisos": historico.AVISOS}
+    if caminho == "/api/sair":
         return {"ok": True}
-    if caminho in ("/api/sei_sync", "/api/sei_adiar", "/api/abrir_dados"):
+    if caminho == "/api/abrir_dados":
         raise ValueError("Isso só existe na ferramenta instalada no computador.")
+    if caminho == "/api/compras_planilha":
+        c = _compras_guardadas()
+        return {"nome": c.get("nome", ""), "quando": c.get("quando", ""), "n": len(c.get("compras", []))}
+    if caminho == "/api/carregar_compras":
+        import controle
+        nome = str(d.get("nome") or "planilha")
+        if not nome.lower().endswith((".xlsx", ".csv", ".txt")):
+            raise ValueError("Use a planilha em .xlsx ou .csv (no Excel: Salvar como, CSV).")
+        compras = controle.compras_da_tabela(controle.ler_tabela(nome, base64.b64decode(d.get("b64") or "")))
+        _ls().setItem(CHAVE_COMPRAS, json.dumps({"nome": nome, "quando": _quando(), "compras": compras}, ensure_ascii=False))
+        ano = motor.carregar_regras()["ano"]
+        return {"nome": nome, "n": len(compras), "n_ano": sum(1 for x in compras if x["ano"] in (ano, None)), "ano": ano}
+    if caminho == "/api/remover_compras":
+        _ls().removeItem(CHAVE_COMPRAS)
+        return {"ok": True}
     if caminho == "/api/planilha":
         import controle
         regras = motor.carregar_regras()
@@ -322,7 +365,7 @@ def _rota(metodo: str, caminho: str, q: dict, d: dict):
         est = d.get("estado")
         if not isinstance(est, dict):
             raise ValueError("andamento inválido")
-        limpo = {k: est.get(k) for k in ("d", "ans", "sei", "h", "fase") if k in est}
+        limpo = {k: est.get(k) for k in ("d", "ans", "sei", "h", "fase", "cancelado") if k in est}
         limpo["atualizado"] = datetime.now().isoformat(timespec="seconds")
         reg["fluxo"] = limpo
         _gravar(estado)

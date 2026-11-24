@@ -1,4 +1,4 @@
-"""Gera as minutas em .docx: memo de intenção às GSAPs, Termo de Referência e checklist.
+"""Gera as minutas em .docx: memo de intenção do setor de origem, Termo de Referência e checklist.
 
 O texto do TR segue os TRs 25 e 31/2024 e 6/2025 da GAPAPS, com a base legal atualizada
 (a Portaria 200/2023 citada neles foi revogada pela Portaria 473/2023).
@@ -180,14 +180,15 @@ def _gerencias_interessadas(pedido: dict) -> list[str]:
     return [g for g, v in q.items() if v and g != "APS Norte"]
 
 
-def _assinaturas_permanente(pedido: dict) -> list[str]:
+def _assinaturas_permanente(pedido: dict, regras: dict) -> list[str]:
     """Ordem pactuada (Diretoria, áudio de 18/11/2026): gestores que sinalizaram no memorando de intenção → bloco da
     Diretoria (revisão de pendências e assinatura) → bloco da Superintendência (revisão e assinatura)."""
     gs = _gerencias_interessadas(pedido)
     linhas = [f"Gestores das gerências que manifestaram interesse no memorando de intenção ({_proc_intencao(pedido)}):"]
     linhas += [f"{g}: [A PREENCHER: nome e matrícula do gestor]" for g in gs] or \
               ["[A PREENCHER: gerência, nome e matrícula de cada gestor que manifestou interesse]"]
-    linhas += ["Diretoria Regional de Atenção Primária à Saúde da Região Norte (SES/SRSNO/DIRAPS), em bloco de assinatura, "
+    nome, sigla = _diretoria(regras)
+    linhas += [f"{nome} ({sigla}), em bloco de assinatura, "
                "após revisão: [A PREENCHER: nome e matrícula]",
                "Superintendência da Região de Saúde Norte (SES/SRSNO), em bloco de assinatura, após revisão: "
                "[A PREENCHER: nome e matrícula]"]
@@ -195,40 +196,45 @@ def _assinaturas_permanente(pedido: dict) -> list[str]:
 
 
 def _origem(pedido: dict) -> str:
-    return str(pedido.get("gsap_origem") or "").strip() or "[A PREENCHER: GSAP de origem]"
+    return str(pedido.get("gsap_origem") or "").strip() or "[A PREENCHER: setor de origem]"
+
+
+def _diretoria(regras: dict) -> tuple[str, str]:
+    """Diretoria do setor de origem (Colegiado 23/11/2026): na APS Norte é a DIRAPS; outra instância troca em regras.json."""
+    o = regras.get("origem") or {}     # regras.json antigo em Dados (editado à mão) não tem a chave: vale a DIRAPS Norte
+    return (o.get("diretoria") or "Diretoria Regional de Atenção Primária à Saúde da Região Norte",
+            o.get("diretoria_sigla") or "SES/SRSNO/DIRAPS")
 
 
 def _qtd_origem(pedido: dict) -> str:
-    """Quantidade da GSAP de origem, só se ela já estiver na grade; a ferramenta nunca sugere quantidade."""
+    """Quantidade do setor de origem, só se ela já estiver na grade; a ferramenta nunca sugere quantidade."""
     _, q = motor.somar_quantidades(pedido)
     orig = str(pedido.get("gsap_origem") or "").strip()
     if orig and orig in q:
         return _qtd(q[orig])
-    return "[A PREENCHER: quantidade necessária na GSAP de origem]"
+    return "[A PREENCHER: quantidade necessária no setor de origem]"
 
 
 def memo_intencao(pedido: dict, analise: dict, regras: dict, destino: Path, hoje: date | None = None) -> Path:
-    """Passo 1 da rotina da DIRAPS Norte (Diretoria, 17/11/2026): a GSAP que percebeu a necessidade abre processo PÚBLICO
-    com memorando de intenção, descrevendo o item (catálogo SES) e a quantidade, e o envia à DIRAPS."""
+    """Passo 1 (Colegiado 23/11/2026): o setor que percebeu a necessidade abre processo PÚBLICO com o memorando de intenção à
+    sua diretoria. O memorando fala só da necessidade do setor: não descreve a responsabilidade dos demais."""
     hoje = hoje or date.today()
     resumo, _ = _desc(pedido, analise)
     cod = analise.get("codigo") or "[A PREENCHER: código SES]"
-    prazo = motor.config_intencao(regras)["dias"]
+    nome, sigla = _diretoria(regras)
     doc = _doc(regras)
-    _par(doc, f"Memorando Nº [A PREENCHER: número]/{hoje.year} - SES/SRSNO/DIRAPS/{_origem(pedido)}                    "
+    _par(doc, f"Memorando Nº [A PREENCHER: número]/{hoje.year} - {sigla}/{_origem(pedido)}                    "
               f"Brasília, {data_extenso(hoje)}.", justificar=False)
-    _par(doc, "À Diretoria Regional de Atenção Primária à Saúde da Região Norte (SES/SRSNO/DIRAPS),", justificar=False)
+    _par(doc, f"À {nome} ({sigla}),", justificar=False)
     _par(doc, f"Assunto: PDPAS - intenção de aquisição de {resumo}", negrito=True, justificar=False)
     for n, t in enumerate([
-        (f"Esta Gerência identificou a necessidade de contratação do serviço: {resumo}." if analise.get("tipo") == "servico" else
-         f"Esta Gerência identificou a necessidade de {resumo}, código SES {cod}, localizado no catálogo de bens e insumos "
+        (f"Este setor identificou a necessidade de contratação do serviço: {resumo}." if analise.get("tipo") == "servico" else
+         f"Este setor identificou a necessidade de {resumo}, código SES {cod}, localizado no catálogo de bens e insumos "
          "padronizados da SES-DF."),
         f"A necessidade decorre de: {_ou_campo(pedido, 'justificativa', 'justificativa da necessidade')}",
-        f"Quantidade necessária nesta Gerência: {_qtd_origem(pedido)}.",
-        "Solicita-se que a Diretoria encaminhe este memorando a todas as gerências da Região Norte, para que se manifestem "
-        f"quanto ao interesse no item no prazo de {prazo} dias úteis, e que devolva a esta Gerência o consolidado do item "
-        "para toda a Atenção Primária da Região Norte, com o qual será construído o processo de solicitação.",
-        "Este memorando abre processo público, conforme a rotina da DIRAPS Norte.",
+        f"Quantidade necessária neste setor: {_qtd_origem(pedido)}.",
+        "Registra-se esta intenção para o levantamento da necessidade das demais gerências da região, com vistas a um único "
+        "processo de aquisição, conforme o Memorando Circular Nº 2/2024 - SES/SRSNO (00060-00326247/2024-15).",
     ], 1):
         _par(doc, f"{n}.  {t}")
     arq = destino / f"1_Memo_intencao_{_nome_arquivo(pedido, analise)}.docx"
@@ -237,13 +243,15 @@ def memo_intencao(pedido: dict, analise: dict, regras: dict, destino: Path, hoje
 
 
 def despacho_intencao(pedido: dict, analise: dict, regras: dict, destino: Path, hoje: date | None = None) -> Path:
-    """Passo 2: a DIRAPS despacha a todas as gerências da região e fixa o prazo de 7 dias úteis."""
+    """Passo 2: a diretoria do setor de origem despacha a todas as gerências da região e fixa o prazo de 7 dias úteis.
+    Minuta oferecida a quem prepara o despacho na diretoria; não sai do setor de origem."""
     hoje = hoje or date.today()
     resumo, _ = _desc(pedido, analise)
     cfg = motor.config_intencao(regras)
     limite = pedido.get("prazo_manifestacao") or "[A PREENCHER: data-limite]"
+    _, sigla = _diretoria(regras)
     doc = _doc(regras)
-    _par(doc, f"Despacho - SES/SRSNO/DIRAPS                    Brasília, {data_extenso(hoje)}.", justificar=False)
+    _par(doc, f"Despacho - {sigla}                    Brasília, {data_extenso(hoje)}.", justificar=False)
     _par(doc, "Às Gerências de Serviços de Atenção Primária à Saúde da Região Norte (SES/SRSNO/DIRAPS/GSAPs),", justificar=False)
     if cfg["extras"]:
         _par(doc, "Com cópia para: " + "; ".join(cfg["extras"]) + ".", justificar=False)
@@ -263,8 +271,8 @@ def despacho_intencao(pedido: dict, analise: dict, regras: dict, destino: Path, 
          "GSAPs que se manifestarem."),
         f"Solicita-se que cada gerência se posicione, no prazo de {cfg['dias']} dias úteis (até {limite}), informando se tem ou "
         "não interesse no item e, havendo, a quantidade necessária para suprir a demanda do local de trabalho.",
-        "Findo o prazo, a Diretoria consolidará as manifestações e devolverá o consolidado à GSAP de origem, que dará seguimento "
-        "ao processo de solicitação.",
+        f"Findo o prazo, o processo retorna à {_origem(pedido)}, que consolidará as manifestações e dará seguimento ao "
+        "processo de solicitação.",
     ], 1):
         _par(doc, f"{n}.  {t}")
     arq = destino / f"1b_Despacho_DIRAPS_gerencias_{_nome_arquivo(pedido, analise)}.docx"
@@ -273,13 +281,15 @@ def despacho_intencao(pedido: dict, analise: dict, regras: dict, destino: Path, 
 
 
 def despacho_consolidado(pedido: dict, analise: dict, regras: dict, destino: Path, hoje: date | None = None) -> Path:
-    """Passo 4: depois dos dias úteis, a DIRAPS devolve à GSAP de origem o consolidado do item para toda a APS Norte."""
+    """Passo 3 (Colegiado 23/11/2026): terminado o prazo das gerências, o próprio setor de origem consolida o interesse e o
+    registra no processo do memorando de intenção."""
     hoje = hoje or date.today()
     resumo, _ = _desc(pedido, analise)
     total, q = motor.somar_quantidades(pedido)
+    _, sigla = _diretoria(regras)
     doc = _doc(regras)
-    _par(doc, f"Despacho - SES/SRSNO/DIRAPS                    Brasília, {data_extenso(hoje)}.", justificar=False)
-    _par(doc, f"À {_origem(pedido)} (SES/SRSNO/DIRAPS),", justificar=False)
+    _par(doc, f"Despacho - {sigla}/{_origem(pedido)}                    Brasília, {data_extenso(hoje)}.", justificar=False)
+    _par(doc, f"Para registro no processo do memorando de intenção ({_proc_intencao(pedido)}).", justificar=False)
     _par(doc, f"Assunto: PDPAS - consolidado de {resumo}", negrito=True, justificar=False)
     _par(doc, f"1.  Encerrado o prazo de manifestação das gerências em {_ou_campo(pedido, 'prazo_manifestacao', 'data-limite')}, "
               f"segue o consolidado de {_item_cod(analise, resumo)}, para toda a Atenção Primária da Região Norte.")
@@ -289,52 +299,13 @@ def despacho_consolidado(pedido: dict, analise: dict, regras: dict, destino: Pat
     linhas.append(["Total", _qtd(total) if total else "[A PREENCHER]"])
     _tabela(doc, ["Bem" if por_bem else "Gerência", "Quantidade"], linhas, [11, 5])
     _par(doc, "2.  Gerências que não se manifestaram no prazo: [A PREENCHER: lista, conforme a planilha de acompanhamento].")
-    _par(doc, "3.  Solicita-se a construção do processo de solicitação (Termo de Referência) com o consolidado acima"
+    _par(doc, "3.  Com o consolidado acima, este setor construirá o Termo de Referência"
               + ("" if analise.get("tipo") == "servico" else ", em processo por código de material, conforme pactuado em colegiado")
-              + ". O processo do Termo de Referência deve ser "
-              f"público, sem documento restrito, e relacionado a este processo ({_proc_intencao(pedido)}).")
-    if analise.get("tipo") == "permanente":
-        _par(doc, "4.  O Termo de Referência será assinado pelos gestores de todas as gerências que manifestaram interesse e, "
-                  "em seguida, seguirá ao bloco de assinatura desta Diretoria e ao da Superintendência.")
+              + f", em processo SEI novo, público, sem documento restrito e relacionado a este processo ({_proc_intencao(pedido)}).")
     arq = destino / f"1c_Despacho_consolidado_{_nome_arquivo(pedido, analise)}.docx"
     doc.save(arq)
     return arq
 
-
-def memo_npdoc_geof(pedido: dict, analise: dict, regras: dict, destino: Path, hoje: date | None = None) -> Path:
-    """Depois de todas as assinaturas do TR (Diretoria, áudio de 18/11/2026): quem construiu o TR, guardião do processo,
-    envia memorando ao NPDOC (há compra em curso, ata vigente, estoque?) e à GEOF (monta o processo e pesquisa preços)."""
-    hoje = hoje or date.today()
-    resumo, _ = _desc(pedido, analise)
-    cod = analise.get("codigo") or "[A PREENCHER: código SES]"
-    total, _ = motor.somar_quantidades(pedido)
-    sigla = (regras.get("entrega") or {}).get("permanente_sigla") or "NPDOC"
-    doc = _doc(regras)
-    _par(doc, f"Memorando Nº [A PREENCHER: número]/{hoje.year} - SES/SRSNO/DIRAPS/{_origem(pedido)}                    "
-              f"Brasília, {data_extenso(hoje)}.", justificar=False)
-    _par(doc, f"Ao {sigla} e à Gerência de Orçamento e Finanças (SES/SRSNO/DA/GEOF),", justificar=False)
-    _par(doc, f"Assunto: PDPAS - aquisição de {resumo}, código SES {cod}", negrito=True, justificar=False)
-    for n, t in enumerate([
-        f"Encaminha-se o Termo de Referência nº {_ou_campo(pedido, 'numero_tr', 'número do TR')} "
-        f"({_ou_campo(pedido, 'sei_tr', 'nº SEI do TR')}), para aquisição via PDPAS de "
-        f"{_qtd(total) if total else '[A PREENCHER: quantidade]'} unidade(s) de {resumo}, código SES {cod}, assinado pelos "
-        "gestores das gerências que manifestaram interesse, pela Diretoria Regional de Atenção Primária à Saúde e pela "
-        "Superintendência da Região de Saúde Norte.",
-        f"Este processo está relacionado ao processo do memorando de intenção ({_proc_intencao(pedido)}), que traz o "
-        "consolidado por gerência para a distribuição do item após o recebimento.",
-        f"Ao {sigla}: solicita-se verificar se há processo de compra em curso, ata de registro de preços vigente ou estoque "
-        "do item, com a juntada do Nada Consta, da Declaração de existência ou inexistência de ata e do Relatório Visão "
-        "Gerencial.",
-        "À GEOF: solicita-se a montagem do processo e a pesquisa de preços, com devolução a esta Gerência para a avaliação "
-        "das propostas e a escolha da empresa.",
-        "A servidora ou o servidor que elaborou o Termo de Referência acompanhará o processo até a entrega final do item: "
-        "[A PREENCHER: nome, matrícula e contato].",
-    ], 1):
-        _par(doc, f"{n}.  {t}")
-    _par(doc, "Atenciosamente,", justificar=False)
-    arq = destino / f"2b_Memo_NPDOC_GEOF_{_nome_arquivo(pedido, analise)}.docx"
-    doc.save(arq)
-    return arq
 
 
 def termo_referencia(pedido: dict, analise: dict, regras: dict, destino: Path, hoje: date | None = None) -> Path:
@@ -721,7 +692,7 @@ def _clausulas_permanente(doc, regras: dict, un: dict, pedido: dict | None = Non
             "estará sujeita às sanções administrativas previstas nos artigos 155 a 163 da Lei nº 14.133/2021."]),
         ("19. DAS ASSINATURAS", [APROVACAO, "Responsável pela Unidade Solicitante (elaborou este Termo de Referência e "
                                  "acompanha o processo até a entrega final): [A PREENCHER: nome e matrícula]",
-                                 *_assinaturas_permanente(pedido)]),
+                                 *_assinaturas_permanente(pedido, regras)]),
     ]
     for titulo, paragrafos in secoes:
         _titulo(doc, titulo)
@@ -737,49 +708,6 @@ def _ponto(t: str) -> str:
 def _ou_campo(pedido: dict, chave: str, falta: str) -> str:
     return str(pedido.get(chave) or "").strip() or f"[A PREENCHER: {falta}]"
 
-
-def memorando_ata_vigente(pedido: dict, analise: dict, regras: dict, destino: Path, hoje: date | None = None) -> Path:
-    """Justificativa do art. 21, § 2º, no formato do Memorando 104/2026 - GAPAPS (SEI 218571701)."""
-    hoje = hoje or date.today()
-    resumo, _ = _desc(pedido, analise)
-    cod = analise.get("codigo") or "[A PREENCHER: código SES]"
-    total, q = motor.somar_quantidades(pedido)
-    locais = list(motor.ler_unidades(pedido)[0]) or list(q)
-    campo = lambda chave, falta: _ou_campo(pedido, chave, falta)
-    preco = motor._num(pedido.get("ata_preco"))        # "1.234,56" em rascunho antigo derrubava a geração
-    valor = motor.moeda(total * preco) if preco is not None else "[A PREENCHER: valor estimado]"
-    preco_txt = motor.moeda(preco) if preco is not None else "[A PREENCHER: preço unitário]"
-    empenho = (pedido.get("ata_empenho") or "").strip()
-    por_que = (pedido.get("justificativa_ata") or "").strip() or "[A PREENCHER: por que a compra central não atende]"
-    relevancia = (pedido.get("justificativa") or "").strip() or "[A PREENCHER: relevância para a população]"
-    estoque = "O estoque nos locais centrais é zero." if pedido.get("estoque_central") == "sem" \
-        else "[A PREENCHER: situação do estoque central]"
-    doc = _doc(regras)
-    P = lambda t, **k: _par(doc, t, **k)
-    P(f"Memorando Nº [A PREENCHER: número]/{hoje.year} - {regras['unidade']['sigla']}", negrito=True, justificar=False)
-    P(f"Brasília-DF, {data_extenso(hoje)}.", justificar=False)
-    P("[A PREENCHER: destinatário]", justificar=False)
-    P(f"Assunto: Aquisição de {resumo} (código SES {cod}) via PDPAS", negrito=True, justificar=False)
-    for n, t in enumerate([
-        f"Trata-se do Termo de Referência n.º {campo('numero_tr', 'número do TR')} ({campo('sei_tr', 'nº SEI do TR')}), que "
-        f"solicita {_qtd(total)} unidade(s) de {resumo} para: {', '.join(locais) or '[A PREENCHER: unidades]'}.",
-        f"A Declaração do {analise['enquadramento'].get('destino') or 'setor responsável'} "
-        f"({campo('sei_declaracao', 'nº SEI da Declaração')}) e o Relatório Visão Gerencial "
-        f"({campo('sei_visao', 'nº SEI do relatório')}) informam a existência da Ata {campo('ata_numero', 'número da ata')}, "
-        f"fornecedor {campo('ata_fornecedor', 'fornecedor')}, com validade até {campo('ata_validade', 'validade')}, saldo de "
-        f"{campo('ata_saldo', 'saldo')} unidades e preço unitário de {preco_txt}"
-        + (f", além de {empenho}" if empenho else "") + f". {estoque}",
-        "O art. 21, § 2º, da Portaria SES nº 473/2023 admite a aquisição de itens de atas válidas por meio do PDPAS, desde "
-        "que devidamente justificada e caracterizada a relevância para o atendimento à população pela Unidade Executora.",
-        f"{_ponto(relevancia)} [A PREENCHER: situação de cada unidade]. {_ponto(por_que)}",
-        f"Tomando como referência o preço da ata, o valor estimado é de {valor}.",
-        "[A PREENCHER: providência solicitada]",
-    ], 1):
-        P(f"{n}.  {t}")
-    P("Atenciosamente,", justificar=False)
-    arq = destino / f"4_Memorando_ata_vigente_{_nome_arquivo(pedido, analise)}.docx"
-    doc.save(arq)
-    return arq
 
 
 def parecer_demandante(pedido: dict, analise: dict, regras: dict, destino: Path, hoje: date | None = None) -> Path:
@@ -839,8 +767,8 @@ def relatorio_checklist(pedido: dict, analise: dict, regras: dict, destino: Path
     _par(doc, f"Código: {analise.get('codigo') or '-'}  |  Tipo: {motor.NOME_TIPO.get(analise['tipo'], analise['tipo'])}  |  Destino: "
               f"{enq.get('destino') or '-'}  |  Despesa: {enq.get('despesa') or '-'}  |  Gerado em {hoje:%d/%m/%Y}",
          justificar=False)
-    _titulo(doc, "Linha para a planilha de acompanhamento (assessoria da DIRAPS)")
-    _tabela(doc, ["Nº do processo do memorando de intenção", "Item", "GSAP de origem", "Data do despacho", "Fim do prazo"],
+    _titulo(doc, "Linha para a planilha de acompanhamento (assessoria da diretoria)")
+    _tabela(doc, ["Nº do processo do memorando de intenção", "Item", "Setor de origem", "Data do despacho", "Fim do prazo"],
             [[_proc_intencao(pedido), _rotulo(analise, resumo),
               _origem(pedido), f"{hoje:%d/%m/%Y}", _ou_campo(pedido, "prazo_manifestacao", "data-limite")]],
             [3.6, 5.2, 3, 2.1, 2.1])
@@ -848,7 +776,12 @@ def relatorio_checklist(pedido: dict, analise: dict, regras: dict, destino: Path
     _tabela(doc, ["Nível", "Regra", "O que fazer"],
             [[{"BLOQUEIO": "Bloqueio", "ATENCAO": "Atenção", "INFO": "Orientação"}[a["severidade"]], a["regra"], a["mensagem"]]
              for a in analise["alertas"]] or [["-", "-", "Sem alertas"]], [2.2, 3.3, 10.5])
+    _titulo(doc, "Dúvida em aberto")
+    duv = doc.add_paragraph().add_run(motor.DUVIDA_ORDEM)
+    duv.font.highlight_color = WD_COLOR_INDEX.YELLOW
     _titulo(doc, "Peças do processo")
+    _par(doc, "Quem abre o processo responde só pelas linhas do setor de origem. As demais aparecem para mostrar o caminho: "
+              "o processo vai andando de um responsável para o outro.", justificar=False)
     lista = motor.checklist(analise["tipo"], pedido)
     ordem = 0
     for fase in motor.FASES:
@@ -856,7 +789,7 @@ def relatorio_checklist(pedido: dict, analise: dict, regras: dict, destino: Path
         if linhas:
             ordem += 1      # consumo e serviço não têm a fase do parecer central: renumera para não saltar do 2 para o 4
             _par(doc, f"{ordem}. {fase.split('. ', 1)[-1]}", negrito=True, justificar=False)
-            _tabela(doc, ["OK", "Responsável", "Peça", "Base"],
+            _tabela(doc, ["OK", "Quem faz essa parte?", "Peça", "Base"],
                     [["☐", c["responsavel"], c["peca"], c["base"]] for c in linhas], [1, 3.2, 8.3, 3.5])
     arq = destino / f"3_Checklist_{_nome_arquivo(pedido, analise)}.docx"
     doc.save(arq)
@@ -877,16 +810,11 @@ def gerar_peca(chave: str, pedido: dict, analise: dict, regras: dict, destino: P
     """Gera (ou refaz) uma única peça na pasta do pedido: é o que o fluxo usa em cada passo."""
     pecas_por_chave = {"memo_intencao": memo_intencao, "despacho_intencao": despacho_intencao,
                        "despacho_consolidado": despacho_consolidado, "termo_referencia": termo_referencia,
-                       "memo_npdoc_geof": memo_npdoc_geof, "memorando_ata_vigente": memorando_ata_vigente,
                        "parecer_demandante": parecer_demandante, "atesto": atesto, "checklist": relatorio_checklist}
     if chave not in pecas_por_chave:
         raise ValueError("Peça desconhecida.")
     if not analise.get("pode_gerar"):
         raise ValueError("Escolha o tipo do pedido antes de gerar as peças.")
-    if chave == "memo_npdoc_geof" and analise["tipo"] != "permanente":
-        raise ValueError("O memorando ao NPDOC e à GEOF só existe em material permanente.")
-    if chave == "memorando_ata_vigente" and analise["tipo"] not in ("consumo", "permanente"):
-        raise ValueError("O memorando de ata vigente só existe em consumo e em material permanente.")
     destino = Path(destino)
     destino.mkdir(parents=True, exist_ok=True)
     return pecas_por_chave[chave](_marcar_nao_validados(pedido), analise, regras, destino, hoje)
@@ -903,12 +831,8 @@ def gerar_tudo(pedido: dict, analise: dict, regras: dict, destino: Path, hoje: d
         arquivos += [memo_intencao(pedido, analise, regras, destino, hoje),
                      termo_referencia(pedido, analise, regras, destino, hoje),
                      relatorio_checklist(pedido, analise, regras, destino, hoje)]
-        if pedido.get("ata") == "vigente" and analise["tipo"] in ("consumo", "permanente"):
-            arquivos.append(memorando_ata_vigente(pedido, analise, regras, destino, hoje))
         arquivos += [despacho_intencao(pedido, analise, regras, destino, hoje),
                      despacho_consolidado(pedido, analise, regras, destino, hoje)]
-        if analise["tipo"] == "permanente":
-            arquivos.append(memo_npdoc_geof(pedido, analise, regras, destino, hoje))
         arquivos += [parecer_demandante(pedido, analise, regras, destino, hoje), atesto(pedido, analise, regras, destino, hoje)]
     except Exception:
         for a in arquivos:      # falha na 3ª peça não deixa as duas primeiras soltas numa pasta "pronta"

@@ -154,5 +154,9 @@
   "veiculo": "VII: aquisição de veículos",
   "pesquisa": "VIII: pesquisas de qualquer natureza",
   "publicidade": "IX: publicidade"
+ },
+ "origem": {
+  "diretoria": "Diretoria Regional de Atenção Primária à Saúde da Região Norte",
+  "diretoria_sigla": "SES/SRSNO/DIRAPS"
  }
 }
