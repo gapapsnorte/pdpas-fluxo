@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import math
 from pathlib import Path
 
 import motor
@@ -14,6 +15,23 @@ COLUNAS = ["Situação", "Origem", "Data", "Código SES", "Item", "Tipo", "Quant
            "Identificação"]
 LARGURAS = [16, 30, 12, 12, 48, 13, 12, 14, 34, 12, 24, 28, 24, 10, 40, 10, 18, 26]
 TIPOS = {"permanente": "Permanente", "consumo": "Consumo", "servico": "Serviço"}
+_INICIO_DE_FORMULA = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _texto_seguro(v):
+    """Texto que começa como fórmula (digitado, vindo do SEI ou de um backup alheio) entra como texto, com apóstrofo:
+    sem isso o Excel executaria =HYPERLINK(...) ou =cmd|... ao abrir a planilha."""
+    return "'" + v if isinstance(v, str) and v.startswith(_INICIO_DE_FORMULA) else v
+
+
+def _celula_csv(v):
+    if v is None:
+        return ""
+    if isinstance(v, float):
+        if not math.isfinite(v):
+            return ""
+        return str(int(v)) if v == int(v) else str(v).replace(".", ",")
+    return _texto_seguro(v)
 
 
 def _br(iso: str) -> str:
@@ -44,7 +62,7 @@ def linhas_compras(hist: dict) -> list[list]:
     """Compras já feitas, a mais recente primeiro. A data é a da nota fiscal."""
     cs = sorted((hist or {}).get("compras", {}).values(), key=lambda c: str(c.get("nf_data") or ""), reverse=True)
     return [["Comprado", "Relação de Estoque Físico (" + str(c.get("origem") or "sem nº SEI") + ")", _br(c.get("nf_data")),
-             c.get("codigo") or "", c.get("descricao") or "", "Consumo", c.get("qtd"), c.get("total"), c.get("fornecedor") or "",
+             c.get("codigo") or "", c.get("descricao") or "", TIPOS.get(motor.classificar_codigo(c.get("codigo"))["grupo"], ""), c.get("qtd"), c.get("total"), c.get("fornecedor") or "",
              c.get("nf") or "", c.get("processo") or "", "", "", "", "", "", "", ""] for c in cs]
 
 
@@ -58,7 +76,7 @@ def gravar_xlsx(destino: Path, linhas: list[list]) -> Path:
     ws.title = "Controle"
     ws.append(COLUNAS)
     for ln in linhas:
-        ws.append(ln)
+        ws.append([_texto_seguro(v) for v in ln])
     for c in ws[1]:
         c.font = Font(bold=True, color="FFFFFF")
         c.fill = PatternFill("solid", fgColor="1F5FA8")
@@ -81,5 +99,5 @@ def csv_texto(linhas: list[list]) -> str:
     w = csv.writer(buf, delimiter=";", lineterminator="\r\n")
     w.writerow(COLUNAS)
     for ln in linhas:
-        w.writerow([(str(int(v)) if v == int(v) else str(v).replace(".", ",")) if isinstance(v, float) else ("" if v is None else v) for v in ln])
+        w.writerow([_celula_csv(v) for v in ln])
     return "﻿" + buf.getvalue()

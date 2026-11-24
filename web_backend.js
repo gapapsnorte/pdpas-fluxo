@@ -1,6 +1,7 @@
 /* Versão web da Ferramenta PDPAS: as mesmas rotas /api/* do programa do computador, respondidas por Python (Pyodide) no próprio navegador.
    Nada vai a servidor: pedidos e rascunhos ficam no localStorage; o backup leva tudo para outro aparelho. */
 (function () {
+  window.PDPAS_WEB = true;   // as páginas mostram mensagens de erro próprias do navegador, não as do programa de mesa
   if (window.top !== window && /[?&]bpmn=1/.test(location.search)) return;   // fluxograma embutido: só desenha, não carrega o Python
   const PYO = "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/";
   const BASE = new URL("./", document.currentScript ? document.currentScript.src : location.href).href;
@@ -23,7 +24,7 @@
 
   const pronto = (async () => {
     aviso("Preparando a ferramenta (na primeira vez leva cerca de um minuto; depois fica guardada no aparelho)…");
-    await new Promise((ok, no) => { const s = document.createElement("script"); s.src = PYO + "pyodide.js"; s.onload = ok; s.onerror = () => no(new Error("Não consegui baixar o Pyodide. Verifique a internet.")); document.head.appendChild(s); });
+    await new Promise((ok, no) => { const s = document.createElement("script"); s.src = PYO + "pyodide.js"; s.crossOrigin = "anonymous"; s.onload = ok; s.onerror = () => no(new Error("Não consegui baixar o Pyodide. Verifique a internet.")); document.head.appendChild(s); });
     py = await loadPyodide({ indexURL: PYO });
     await py.loadPackage(["lxml", "typing-extensions", "micropip"]);
     aviso("Carregando o catálogo e as regras…");
@@ -52,9 +53,9 @@
   }
 
   window.fetch = async function (url, opt) {
-    const u = new URL(typeof url === "string" ? url : url.url, location.href);
+    const u = new URL(url instanceof Request ? url.url : String(url), location.href);
     if (!u.pathname.startsWith("/api/")) return realFetch(url, opt);
-    const p = await pronto.catch(e => { throw e; });
+    const p = await pronto;
     const metodo = (opt && opt.method) || "GET";
     const corpo = (opt && opt.body) || "";
     const r = JSON.parse(p.globals.get("web_api").tratar(metodo, u.pathname, u.search.replace(/^\?/, ""), corpo));
@@ -107,7 +108,7 @@
     const st = document.createElement("style");
     st.textContent = "body{box-sizing:border-box;padding-top:30px!important}.app{height:calc(100vh - 30px)!important}.app.wide{height:auto!important;min-height:calc(100vh - 30px)!important}";
     document.head.appendChild(st);
-    b.style.cssText = "position:fixed;right:8px;top:3px;z-index:9999;font:13px system-ui,sans-serif;background:var(--cartao,#fff);color:var(--tx,#222);border:1px solid #9aa;border-radius:8px;padding:4px 8px;max-width:260px";
+    b.style.cssText = "position:fixed;right:8px;top:3px;z-index:9999;font:13px system-ui,sans-serif;background:var(--cartao,#fff);color:var(--tx,#222);border:1px solid #9aa;border-radius:8px;padding:4px 8px;max-width:260px;max-height:calc(100vh - 12px);overflow:auto";
     b.innerHTML = '<summary style="cursor:pointer">Levar para outro computador</summary><p style="margin:6px 0">Os pedidos ficam só neste aparelho. Salve o backup (guarde no Drive ou OneDrive) e carregue no outro aparelho. As minutas são refeitas na hora.</p><button type="button" id="wbSalvar" style="margin:2px">Salvar backup</button><label style="display:inline-block;border:1px solid #889;border-radius:6px;padding:2px 8px;margin:2px;cursor:pointer">Carregar backup<input id="wbCarregar" type="file" accept=".json,application/json" hidden></label><div id="wbMsg" style="margin-top:4px"></div><hr style="margin:8px 0"><b>Drive e planilha mestra</b><p style="margin:4px 0">Cole o endereço do seu script do Google e o código que você definiu nele.</p><input id="wbUrl" placeholder="endereço do script (https://script.google.com/…/exec)" style="width:100%;box-sizing:border-box;margin:2px 0"><input id="wbCod" type="password" placeholder="código" autocomplete="off" style="width:100%;box-sizing:border-box;margin:2px 0"><label style="display:block;margin:2px 0"><input id="wbAuto" type="checkbox"> Salvar sozinho a cada alteração</label><button type="button" id="wbTestar" style="margin:2px">Conectar e testar</button><button type="button" id="wbEnviar" style="margin:2px">Enviar tudo agora</button><button type="button" id="wbTrazer" style="margin:2px">Trazer do Drive</button><button type="button" id="wbSair" style="margin:2px">Desconectar</button><div id="wbNuvem" style="margin-top:4px"></div><p style="margin:6px 0"><a href="https://github.com/gapapsnorte/pdpas-fluxo/blob/main/apps_script/TRANSPLANTAR.md" target="_blank" rel="noopener">Como trocar de conta</a></p>';
     document.body.appendChild(b);
     nuvemUI(b);

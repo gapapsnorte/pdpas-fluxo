@@ -270,13 +270,23 @@ def _chave_norm(c: dict) -> str:
     return f"{str(c.get('codigo') or '').strip().upper()}|{nf}|{str(c.get('processo') or '').strip()}|{float(c.get('total') or 0):.2f}"
 
 
+def _compra_valida(c) -> bool:
+    """Tem os campos obrigatórios, total numérico e data da nota em texto (as consultas ordenam e fatiam essa data)."""
+    if not isinstance(c, dict) or not c.keys() >= _OBRIGATORIAS:
+        return False
+    total = c.get("total")
+    if isinstance(total, bool) or not isinstance(total, (int, float)) or total != total:
+        return False
+    return isinstance(c.get("nf_data"), str)
+
+
 def fundir(base: dict, outro: dict) -> tuple[dict, int]:
     """Soma o que falta em base. Rodar de novo com o mesmo arquivo não muda nada."""
     novos = 0
     vistos_c = {_chave_norm(c) for c in base["compras"].values() if isinstance(c, dict)}
     for k, c in (outro.get("compras") or {}).items():
-        # entrada incompleta (JSON de outra máquina) quebraria as consultas em toda abertura: fica de fora
-        if not isinstance(c, dict) or not c.keys() >= _OBRIGATORIAS or c.get("total") is None:
+        # entrada incompleta ou de tipo errado (JSON de outra máquina) quebraria as consultas em toda abertura: fica de fora
+        if not _compra_valida(c):
             continue
         if k not in base["compras"] and _chave_norm(c) not in vistos_c:
             base["compras"][k] = c
@@ -293,12 +303,18 @@ def fundir(base: dict, outro: dict) -> tuple[dict, int]:
                 novos += 1
             destino[mes] = max(destino.get(mes, 0), valor)
     for cod, v in (outro.get("visao") or {}).items():
+        if not isinstance(v, dict):
+            continue
         if cod not in base["visao"] or v.get("data", "") > base["visao"][cod].get("data", ""):
             base["visao"][cod] = v
             novos += 1
     for cod, campos in (outro.get("textos") or {}).items():
+        if not isinstance(campos, dict):
+            continue
         destino = base.setdefault("textos", {}).setdefault(cod, {})
         for campo, v in campos.items():
+            if not isinstance(v, dict):
+                continue
             if campo not in destino or v.get("data", "") > destino[campo].get("data", ""):
                 destino[campo] = v
                 novos += 1

@@ -144,23 +144,6 @@
    "fonte": "Pareceres 492 e 494/2026 (SEI 218289390, 218452927)"
   }
  ],
- "modelos_geof": {
-  "fonte": "Memorando Circular 6/2023 - SES/SRSNO/DA/GEOF (SEI 123582987)",
-  "tr_insumos": "124586413",
-  "tr_servico": "172124918",
-  "tr_permanente": "123587346",
-  "declaracao_ata": "121090346",
-  "obs": "Os modelos da GEOF ainda citam a Portaria 200/2023, revogada. As minutas citam a 473."
- },
- "unidades_aps": {
-  "Norte": "00.394.700/0050-96",
-  "Sul": "00.394.700/0051-77",
-  "Leste": "00.394.700/0046-00",
-  "Centro-Sul": "00.394.700/0047-90",
-  "Oeste": "00.394.700/0048-71",
-  "Central": "00.394.700/0049-52",
-  "Sudoeste": "00.394.700/0045-29"
- },
  "vedacoes_art4": {
   "pessoal": "I: pessoal e encargos sociais, qualquer que seja o vínculo",
   "novo_servico": "II: implantação de novos serviços",

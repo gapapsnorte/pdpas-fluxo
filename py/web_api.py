@@ -64,8 +64,9 @@ def _gravar_historico() -> None:
     historico.salvar(h, HIST_ARQ)
     try:
         _ls().setItem(CHAVE_HIST, HIST_ARQ.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        raise ValueError("Importado, mas este navegador não deixou guardar o histórico no aparelho (espaço cheio ou modo "
+                         "privado): ele some ao fechar a página. Baixe o backup.") from e
 
 
 def _item(i: dict) -> dict:
@@ -144,10 +145,6 @@ def _gerar_pasta(pid: str, pedido: dict, so: str | None = None) -> tuple[list[Pa
     return pecas.gerar_tudo(pedido, analise, regras, pasta), analise
 
 
-def _arquivos_de(pid: str, estado: dict) -> list[dict]:
-    return estado["pedidos"][pid].get("arquivos") or []
-
-
 def _baixar_arquivo(pid: str, nome: str, estado: dict) -> dict:
     reg = _pedido_guardado(pid, estado)
     pedido = reg["pedido"]
@@ -171,19 +168,54 @@ def exportar() -> str:
                        "estado": _ler(), "historico": _ls().getItem(CHAVE_HIST) or ""}, ensure_ascii=False)
 
 
+_CAMPOS_PEDIDO = ("pedido", "fluxo", "criado", "criado_br", "arquivos")
+_CAMPOS_FLUXO = ("d", "ans", "sei", "h", "fase", "atualizado")
+
+
+def _mexido_em(reg: dict) -> str:
+    """Última vez em que o registro mudou: o andamento do fluxo conta, não só a criação do pedido."""
+    fluxo = reg.get("fluxo") if isinstance(reg.get("fluxo"), dict) else {}
+    return max(str(fluxo.get("atualizado") or ""), str(reg.get("atualizado") or ""), str(reg.get("criado") or ""))
+
+
+def _pedido_do_backup(reg) -> dict | None:
+    """Só o que a ferramenta grava passa: o arquivo pode ter vindo de outra pessoa ou ter sido editado à mão."""
+    if not isinstance(reg, dict) or not isinstance(reg.get("pedido"), dict):
+        return None
+    limpo = {k: reg[k] for k in _CAMPOS_PEDIDO if k in reg}
+    fluxo = limpo.get("fluxo")
+    limpo["fluxo"] = {k: fluxo[k] for k in _CAMPOS_FLUXO if k in fluxo} if isinstance(fluxo, dict) else {}
+    arquivos = limpo.get("arquivos")
+    limpo["arquivos"] = [{"nome": str(a.get("nome") or ""), "quando": str(a.get("quando") or "")}
+                         for a in arquivos if isinstance(a, dict)] if isinstance(arquivos, list) else []
+    return limpo
+
+
+def _rascunho_do_backup(reg) -> dict | None:
+    return reg if isinstance(reg, dict) and isinstance(reg.get("pedido"), dict) else None
+
+
 def importar_backup(txt: str) -> str:
     d = json.loads(txt)
     if not isinstance(d, dict) or d.get("formato") != "pdpas-web" or not isinstance(d.get("estado"), dict):
         raise ValueError("Este arquivo não é um backup da Ferramenta PDPAS (versão web).")
     novo, atual = d["estado"], _ler()
-    novo.setdefault("pedidos", {})
-    novo.setdefault("rascunhos", {})
-    for k in ("pedidos", "rascunhos"):                  # junta: o que é mais recente vence
-        for i, v in novo[k].items():
-            a = atual[k].get(i)
-            if not a or str(v.get("atualizado") or v.get("criado") or "") >= str(a.get("atualizado") or a.get("criado") or ""):
-                atual[k][i] = v
+    for grupo, identificador, validar in (("pedidos", PID, _pedido_do_backup), ("rascunhos", RID, _rascunho_do_backup)):
+        entradas = novo.get(grupo)
+        for i, bruto in (entradas.items() if isinstance(entradas, dict) else ()):
+            reg = validar(bruto)
+            if reg is None or not identificador.fullmatch(str(i)):
+                continue
+            ja = atual[grupo].get(i)
+            if not ja or _mexido_em(reg) >= _mexido_em(ja):      # junta: vence o lado mexido por último
+                atual[grupo][i] = reg
     _gravar(atual)
+    if d.get("historico"):          # Visão Gerencial, Relações e textos validados no outro computador
+        try:
+            historico.fundir(motor.hist(), json.loads(d["historico"]))
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
+            raise ValueError("Pedidos e rascunhos carregados, mas o histórico deste backup está ilegível e ficou de fora.") from e
+        _gravar_historico()
     return json.dumps({"pedidos": len(atual["pedidos"]), "rascunhos": len(atual["rascunhos"])})
 
 
@@ -250,7 +282,9 @@ def _rota(metodo: str, caminho: str, q: dict, d: dict):
         if d.get("texto"):
             texto, nome, dados = d["texto"], d.get("nome") or "texto colado", None
         else:
-            nome, dados = d["nome"], base64.b64decode(d["b64"])
+            if not d.get("nome") or not d.get("b64"):
+                raise ValueError("Cole o texto do documento ou escolha um arquivo.")
+            nome, dados = str(d["nome"]), base64.b64decode(d["b64"])
             if nome.lower().endswith(".json"):
                 texto = None
             else:
@@ -318,10 +352,6 @@ def _rota(metodo: str, caminho: str, q: dict, d: dict):
             return _baixar_arquivo(pid, partes[2] if len(partes) > 2 else "", estado)
         raise ValueError("não encontrei essa pasta")
     raise ValueError("rota desconhecida")
-
-
-COLUNAS_MESTRA = ["id", "atualizado", "criado", "codigo_ses", "item", "tipo", "quantidade_total", "valor_estimado", "unidades",
-                  "fase", "passos_feitos", "passos_total", "numeros_sei", "minutas", "situacao"]
 
 
 def _linha(pid: str, reg: dict) -> dict:

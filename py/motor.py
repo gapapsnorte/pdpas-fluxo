@@ -15,6 +15,7 @@ Memorandos Circulares 6/2023 e 1/2025 da GEOF Norte, 2/2024 da SRSNO e 3/2024 da
 from __future__ import annotations
 
 import json
+import math
 import re
 import unicodedata
 from dataclasses import asdict, dataclass
@@ -119,7 +120,7 @@ def _num(v) -> float | None:
     if v in (None, ""):
         return None
     if isinstance(v, (int, float)):
-        return float(v)
+        return float(v) if math.isfinite(v) else None     # NaN/inf vindos de um JSON adulterado não passam pelo teto
     return historico.numero(v)
 
 
@@ -177,7 +178,7 @@ def area_parecer(item: dict | None, codigo: str, regras: dict) -> dict | None:
 def valor_estimado(pedido: dict) -> float | None:
     total, _ = somar_quantidades(pedido)
     preco = _num(pedido.get("preco_estimado"))
-    if preco is None:
+    if preco is None or preco < 0:
         return None
     from decimal import ROUND_HALF_UP, Decimal
     # em float, 0,125 × 1 arredondava para 0,12 (meio-par sobre o binário): no limiar do teto cada centavo conta

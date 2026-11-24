@@ -240,7 +240,6 @@ def despacho_intencao(pedido: dict, analise: dict, regras: dict, destino: Path, 
     """Passo 2: a DIRAPS despacha a todas as gerências da região e fixa o prazo de 7 dias úteis."""
     hoje = hoje or date.today()
     resumo, _ = _desc(pedido, analise)
-    cod = analise.get("codigo") or "[A PREENCHER: código SES]"
     cfg = motor.config_intencao(regras)
     limite = pedido.get("prazo_manifestacao") or "[A PREENCHER: data-limite]"
     doc = _doc(regras)
@@ -277,7 +276,6 @@ def despacho_consolidado(pedido: dict, analise: dict, regras: dict, destino: Pat
     """Passo 4: depois dos dias úteis, a DIRAPS devolve à GSAP de origem o consolidado do item para toda a APS Norte."""
     hoje = hoje or date.today()
     resumo, _ = _desc(pedido, analise)
-    cod = analise.get("codigo") or "[A PREENCHER: código SES]"
     total, q = motor.somar_quantidades(pedido)
     doc = _doc(regras)
     _par(doc, f"Despacho - SES/SRSNO/DIRAPS                    Brasília, {data_extenso(hoje)}.", justificar=False)
